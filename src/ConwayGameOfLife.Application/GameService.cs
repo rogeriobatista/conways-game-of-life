@@ -17,6 +17,13 @@ public sealed class GameService(
 {
     private readonly GameLimitsOptions _limits = limitsOptions.Value;
 
+    public async Task<IReadOnlyList<BoardSummaryResponse>> ListBoardsAsync(CancellationToken cancellationToken = default)
+    {
+        var list = await repository.ListSummariesAsync(cancellationToken).ConfigureAwait(false);
+        logger.LogDebug("Listed {Count} board(s).", list.Count);
+        return list;
+    }
+
     public async Task<BoardCreatedResponse> CreateBoardAsync(CreateBoardCommand command, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);

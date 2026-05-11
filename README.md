@@ -34,6 +34,7 @@ There are no connection strings or limits hardcoded in code; they come from conf
 
 | Method | Route | Description |
 |--------|--------|-------------|
+| `GET` | `/api/game/boards` | Lists all registered boards: `id`, `rows`, `columns`, `updatedAtUtc` (ISO UTC). Most recently updated first. Omits cell data. |
 | `POST` | `/api/game/boards` | Upload a board (`cells` as jagged `bool[][]`). Returns `{ "id": "<guid>" }` with `201 Created` and `Location` header. |
 | `GET` | `/api/game/boards/{id}/next` | Computes the next generation, **persists** it, returns current state. |
 | `GET` | `/api/game/boards/{id}/advance/{steps}` | Advances `steps` generations, persists result. |

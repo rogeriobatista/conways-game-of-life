@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ConwayGameOfLife.Application.Persistence;
+using ConwayGameOfLife.Application.Responses;
 using ConwayGameOfLife.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,21 @@ namespace ConwayGameOfLife.Infrastructure.Persistence;
 public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    public async Task<IReadOnlyList<BoardSummaryResponse>> ListSummariesAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.Boards.AsNoTracking()
+            .OrderByDescending(b => b.UpdatedAtUtc)
+            .Select(b => new { b.Id, b.StateJson, b.UpdatedAtUtc })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return rows.ConvertAll(static r =>
+        {
+            var (rowCount, columnCount) = ReadDimensionsFromStateJson(r.StateJson);
+            return new BoardSummaryResponse(r.Id, rowCount, columnCount, r.UpdatedAtUtc);
+        });
+    }
 
     public async Task<GameBoardRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
@@ -61,4 +77,24 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
 
     private static string SerializeBoard(Board board) =>
         JsonSerializer.Serialize(board.ToJagged(), JsonOptions);
+
+    private static (int Rows, int Columns) ReadDimensionsFromStateJson(string stateJson)
+    {
+        using var doc = JsonDocument.Parse(stateJson);
+        var root = doc.RootElement;
+        if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() == 0)
+        {
+            throw new InvalidOperationException("Invalid board state: expected a non-empty JSON array of rows.");
+        }
+
+        var rows = root.GetArrayLength();
+        var firstRow = root[0];
+        if (firstRow.ValueKind != JsonValueKind.Array || firstRow.GetArrayLength() == 0)
+        {
+            throw new InvalidOperationException("Invalid board state: each row must be a non-empty JSON array.");
+        }
+
+        var columns = firstRow.GetArrayLength();
+        return (rows, columns);
+    }
 }

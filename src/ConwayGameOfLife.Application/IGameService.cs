@@ -5,6 +5,8 @@ namespace ConwayGameOfLife.Application;
 
 public interface IGameService
 {
+    Task<IReadOnlyList<BoardSummaryResponse>> ListBoardsAsync(CancellationToken cancellationToken = default);
+
     Task<BoardCreatedResponse> CreateBoardAsync(CreateBoardCommand command, CancellationToken cancellationToken = default);
 
     Task<BoardStateResponse> GetNextGenerationAsync(Guid boardId, CancellationToken cancellationToken = default);

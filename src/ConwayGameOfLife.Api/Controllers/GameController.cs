@@ -11,6 +11,15 @@ namespace ConwayGameOfLife.Api.Controllers;
 [Route("api/game/boards")]
 public sealed class GameController(IGameService gameService, IOptions<GameLimitsOptions> limitsOptions) : ControllerBase
 {
+    /// <summary>Lists all registered boards (most recently updated first). Cell data is omitted.</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<BoardSummaryResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<BoardSummaryResponse>>> ListBoards(CancellationToken cancellationToken)
+    {
+        var boards = await gameService.ListBoardsAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(boards);
+    }
+
     /// <summary>Upload a new board; returns a unique identifier.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(BoardCreatedResponse), StatusCodes.Status201Created)]
