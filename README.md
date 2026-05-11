@@ -1,75 +1,50 @@
-# Conway's Game of Life API
+# Conway’s Game of Life — monorepo
 
-Production-oriented ASP.NET Core REST API for [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life), with SQLite persistence via Entity Framework Core.
+This repository contains:
+
+| Package | Stack | Description |
+|---------|--------|-------------|
+| **`backend/`** | .NET 10, ASP.NET Core, EF Core SQLite | REST API for boards, generations, and persistence. |
+| **`frontend/`** | React 19, TypeScript, Vite 7 | UI to draw patterns, call the API, and visualize server-backed boards. |
 
 ## Prerequisites
 
-- [.NET SDK](https://dotnet.microsoft.com/download) 10 (or adjust `TargetFramework` in each `.csproj` if you need 8/9 and matching EF Core packages).
+- [.NET SDK 10](https://dotnet.microsoft.com/download)
+- [Node.js 20+](https://nodejs.org/) (includes npm)
 
-## How to run
+## Quick start
 
-From the repository root:
-
-```bash
-dotnet restore
-dotnet build
-dotnet run --project src/ConwayGameOfLife.Api
-```
-
-On startup the API applies EF Core migrations (SQLite file from configuration).
-
-- HTTP: see `src/ConwayGameOfLife.Api/Properties/launchSettings.json` for the configured URL (often `http://localhost:5xxx`).
-- Swagger UI: `/swagger`
-
-### Configuration (`appsettings.json`)
-
-| Area | Purpose |
-|------|--------|
-| `ConnectionStrings:DefaultConnection` | SQLite connection string (default `Data Source=gameoflife.db`). |
-| `Game` | Limits and defaults: `MaxRows`, `MaxColumns`, `MaxAdvanceSteps`, `MaxFinalStateAttempts`, `DefaultFinalStateMaxAttempts`. |
-
-There are no connection strings or limits hardcoded in code; they come from configuration.
-
-## API endpoints
-
-| Method | Route | Description |
-|--------|--------|-------------|
-| `GET` | `/api/game/boards` | Lists all registered boards: `id`, `rows`, `columns`, `updatedAtUtc` (ISO UTC). Most recently updated first. Omits cell data. |
-| `POST` | `/api/game/boards` | Upload a board (`cells` as jagged `bool[][]`). Returns `{ "id": "<guid>" }` with `201 Created` and `Location` header. |
-| `GET` | `/api/game/boards/{id}/next` | Computes the next generation, **persists** it, returns current state. |
-| `GET` | `/api/game/boards/{id}/advance/{steps}` | Advances `steps` generations, persists result. |
-| `GET` | `/api/game/boards/{id}/final?maxAttempts=` | Advances until a **stable** generation or fails with `400` if not reached within `maxAttempts`. If `maxAttempts` is omitted, `Game:DefaultFinalStateMaxAttempts` is used. |
-
-JSON error bodies look like `{ "code": "...", "message": "..." }`.
-
-## Assumptions
-
-1. **Finite grid; edges are dead.** Cells outside the rectangle are treated as dead (no toroidal wrap).
-2. **Stored board moves forward.** Each `next`, `advance`, and successful `final` call updates the saved state so later calls continue from the latest generation.
-3. **Stable final state** means `next(generation) == generation` (still lifes). Patterns that oscillate (e.g. blinker) never satisfy this and typically return `400` with code `final_state_not_reached` once `maxAttempts` is exceeded.
-4. **Failed `final` still advances persistence.** If stabilization fails within `maxAttempts`, the stored board is left at the state reached after those attempts (same as having called `advance` that many times).
-
-## Architecture
-
-| Project | Role |
-|---------|------|
-| `ConwayGameOfLife.Domain` | `Board`, `IGameEngine`, `GameEngine` (pure rules). |
-| `ConwayGameOfLife.Application` | `IGameService`, orchestration, FluentValidation, options. |
-| `ConwayGameOfLife.Infrastructure` | EF Core SQLite, `GameBoardEntity`, migrations, `IGameBoardRepository` implementation. |
-| `ConwayGameOfLife.Api` | Controllers, Swagger, global exception handler, DI composition. |
-
-## Tests
+**1. API (port 5021 by default)**
 
 ```bash
-dotnet test
+npm run dev:backend
 ```
 
-Uses **xUnit**, **FluentAssertions**, and **Moq** (service tests with a mocked repository).
+Or from `backend/`: `dotnet run --project src/ConwayGameOfLife.Api --launch-profile http`
 
-## EF Core migrations
+**2. Web UI (Vite dev server, port 5173)**
+
+In another terminal:
 
 ```bash
-dotnet ef migrations add <Name> --project src/ConwayGameOfLife.Infrastructure --startup-project src/ConwayGameOfLife.Api
+npm run dev:frontend
 ```
 
-Requires the EF CLI (`dotnet tool install --global dotnet-ef`). The API project references `Microsoft.EntityFrameworkCore.Design` for tooling.
+The Vite dev server **proxies** `/api` to `http://127.0.0.1:5021`, so the browser can call the API without CORS issues during local development.
+
+## Scripts (repository root)
+
+| Script | Action |
+|--------|--------|
+| `npm run dev:backend` | Run the ASP.NET Core API. |
+| `npm run dev:frontend` | Run the React app with hot reload. |
+| `npm run build` | Release build for backend + production bundle for frontend. |
+| `npm run test:backend` | Run xUnit tests. |
+
+## Production / separate hosts
+
+Set **`VITE_API_BASE_URL`** when building the frontend (e.g. `https://api.example.com`). Requests go to that origin; ensure the API **`Cors:AllowedOrigins`** in `backend/src/ConwayGameOfLife.Api/appsettings.json` includes your web origin.
+
+## Documentation
+
+- Backend API details, EF migrations, and architecture: [`backend/README.md`](backend/README.md)

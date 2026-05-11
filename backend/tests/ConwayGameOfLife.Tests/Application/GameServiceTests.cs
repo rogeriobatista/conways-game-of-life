@@ -34,6 +34,29 @@ public sealed class GameServiceTests
             NullLogger<GameService>.Instance);
 
     [Fact]
+    public async Task GetBoardStateAsync_ReturnsCurrentBoardWithoutUpdate()
+    {
+        var block = Board.FromJagged(
+            new[]
+            {
+                new[] { true, true },
+                new[] { true, true }
+            });
+
+        var id = Guid.NewGuid();
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameBoardRecord { Id = id, Board = block });
+
+        var sut = CreateSut(repo);
+
+        var response = await sut.GetBoardStateAsync(id);
+
+        response.Cells.Should().BeEquivalentTo(block.ToJagged(), options => options.WithStrictOrdering());
+        repo.Verify(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task ListBoardsAsync_ReturnsSummariesFromRepository()
     {
         var id = Guid.NewGuid();

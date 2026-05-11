@@ -17,6 +17,15 @@ public sealed class GameService(
 {
     private readonly GameLimitsOptions _limits = limitsOptions.Value;
 
+    public async Task<BoardStateResponse> GetBoardStateAsync(Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
+            ?? throw new BoardNotFoundException(boardId);
+
+        logger.LogDebug("Read board {BoardId} state.", boardId);
+        return ToResponse(record);
+    }
+
     public async Task<IReadOnlyList<BoardSummaryResponse>> ListBoardsAsync(CancellationToken cancellationToken = default)
     {
         var list = await repository.ListSummariesAsync(cancellationToken).ConfigureAwait(false);

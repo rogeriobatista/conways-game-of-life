@@ -32,6 +32,16 @@ public sealed class GameController(IGameService gameService, IOptions<GameLimits
         return Created($"/api/game/boards/{result.Id}", result);
     }
 
+    /// <summary>Returns the current persisted state without evolving the board.</summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(BoardStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BoardStateResponse>> GetBoard(Guid id, CancellationToken cancellationToken)
+    {
+        var state = await gameService.GetBoardStateAsync(id, cancellationToken).ConfigureAwait(false);
+        return Ok(state);
+    }
+
     /// <summary>Computes and persists the next generation for the board.</summary>
     [HttpGet("{id:guid}/next")]
     [ProducesResponseType(typeof(BoardStateResponse), StatusCodes.Status200OK)]

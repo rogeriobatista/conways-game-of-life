@@ -413,6 +413,9 @@ FodyWeavers.xsd
 gameoflife.db
 design-time-gameoflife.db
 
+# Frontend build output
+frontend/dist/
+
 # globs
 Makefile.in
 *.userprefs
