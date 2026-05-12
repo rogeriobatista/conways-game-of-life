@@ -8,8 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="FluentAssertions" Version="8.9.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.2" />
@@ -21,8 +27,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\ConwayGameOfLife.Api\ConwayGameOfLife.Api.csproj" />
     <ProjectReference Include="..\..\src\ConwayGameOfLife.Application\ConwayGameOfLife.Application.csproj" />
     <ProjectReference Include="..\..\src\ConwayGameOfLife.Domain\ConwayGameOfLife.Domain.csproj" />
+    <ProjectReference Include="..\..\src\ConwayGameOfLife.Infrastructure\ConwayGameOfLife.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

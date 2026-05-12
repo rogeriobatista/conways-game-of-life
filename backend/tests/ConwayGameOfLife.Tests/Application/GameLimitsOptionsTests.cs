@@ -28,4 +28,12 @@ public sealed class GameLimitsOptionsTests
 
         o.ResolveLeaderboardTop(null).Should().Be(12);
     }
+
+    [Fact]
+    public void ResolveLeaderboardTop_UsesProvidedValue()
+    {
+        var o = new GameLimitsOptions { DefaultLeaderboardTop = 12 };
+
+        o.ResolveLeaderboardTop(3).Should().Be(3);
+    }
 }

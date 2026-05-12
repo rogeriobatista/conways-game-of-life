@@ -39,6 +39,54 @@ public sealed class BoardGridLimitsTests
             .Throw<GameValidationException>()
             .WithMessage("*1 rows*10 columns*");
     }
+
+    [Fact]
+    public void EnsureBoardWithinLimits_ThrowsWhenColumnsExceedMax()
+    {
+        var limits = new GameLimitsOptions { MaxRows = 10, MaxColumns = 1 };
+        var board = new Board(new bool[,] { { true, false } });
+
+        var act = () => BoardGridLimits.EnsureBoardWithinLimits(board, limits);
+
+        act.Should().Throw<GameValidationException>();
+    }
+
+    [Fact]
+    public void EnsureBoardWithinLimits_ThrowsWhenBoardNull()
+    {
+        var act = () => BoardGridLimits.EnsureBoardWithinLimits(null!, new GameLimitsOptions());
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void EnsureBoardWithinLimits_ThrowsWhenLimitsNull()
+    {
+        var act = () => BoardGridLimits.EnsureBoardWithinLimits(new Board(new[,] { { true } }), null!);
+
+        act.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void RowCountExceededMessage_IncludesMaxRows()
+    {
+        var limits = new GameLimitsOptions { MaxRows = 42, MaxColumns = 1 };
+        BoardGridLimits.RowCountExceededMessage(limits).Should().Be("Row count cannot exceed 42.");
+    }
+
+    [Fact]
+    public void ColumnCountPerRowExceededMessage_IncludesMaxColumns()
+    {
+        var limits = new GameLimitsOptions { MaxRows = 1, MaxColumns = 7 };
+        BoardGridLimits.ColumnCountPerRowExceededMessage(limits).Should().Be("Column count cannot exceed 7.");
+    }
+
+    [Fact]
+    public void UniformRowsMessage_IncludesMaxColumns()
+    {
+        var limits = new GameLimitsOptions { MaxRows = 1, MaxColumns = 9 };
+        BoardGridLimits.UniformRowsMessage(limits).Should().Contain("9");
+    }
 }
 
 public sealed class GameServiceDimensionTests

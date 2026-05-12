@@ -96,3 +96,6 @@ finally
 {
     await Log.CloseAndFlushAsync();
 }
+
+/// <summary>Exposes the implicit Program class to test projects using <see cref="Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory{TEntryPoint}"/>.</summary>
+public partial class Program;

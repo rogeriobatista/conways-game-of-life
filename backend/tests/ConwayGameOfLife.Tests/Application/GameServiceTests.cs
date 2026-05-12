@@ -209,4 +209,114 @@ public sealed class GameServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task GetBoardStateAsync_ThrowsWhenMissing()
+    {
+        var id = Guid.NewGuid();
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync((GameBoardRecord?)null);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.GetBoardStateAsync(id);
+
+        await act.Should().ThrowAsync<BoardNotFoundException>();
+    }
+
+    [Fact]
+    public async Task CreateBoardAsync_ThrowsWhenCommandNull()
+    {
+        var repo = new Mock<IGameBoardRepository>();
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.CreateBoardAsync(null!);
+
+        await act.Should().ThrowAsync<ArgumentNullException>();
+    }
+
+    [Fact]
+    public async Task CreateBoardAsync_ThrowsWhenCellsNull()
+    {
+        var repo = new Mock<IGameBoardRepository>();
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.CreateBoardAsync(new CreateBoardCommand { Cells = null! });
+
+        await act.Should().ThrowAsync<GameValidationException>().WithMessage("*Cells are required*");
+    }
+
+    [Fact]
+    public async Task AdvanceAsync_ThrowsWhenStepsBelowOne()
+    {
+        var id = Guid.NewGuid();
+        var repo = RepoWith(id, TestBoards.Block2x2);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.AdvanceAsync(id, 0);
+
+        await act.Should().ThrowAsync<GameValidationException>().WithMessage("*at least 1*");
+    }
+
+    [Fact]
+    public async Task AdvanceAsync_ThrowsWhenStepsExceedLimit()
+    {
+        var id = Guid.NewGuid();
+        var repo = RepoWith(id, TestBoards.Block2x2);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.AdvanceAsync(id, Limits.MaxAdvanceSteps + 1);
+
+        await act.Should().ThrowAsync<GameValidationException>().WithMessage("*cannot exceed*");
+    }
+
+    [Fact]
+    public async Task GetFinalStableStateAsync_ThrowsWhenMaxAttemptsBelowOne()
+    {
+        var id = Guid.NewGuid();
+        var repo = RepoWith(id, TestBoards.Block2x2);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.GetFinalStableStateAsync(id, 0);
+
+        await act.Should().ThrowAsync<GameValidationException>().WithMessage("*at least 1*");
+    }
+
+    [Fact]
+    public async Task GetFinalStableStateAsync_ThrowsWhenMaxAttemptsExceedLimit()
+    {
+        var id = Guid.NewGuid();
+        var repo = RepoWith(id, TestBoards.Block2x2);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.GetFinalStableStateAsync(id, Limits.MaxFinalStateAttempts + 1);
+
+        await act.Should().ThrowAsync<GameValidationException>().WithMessage("*cannot exceed*");
+    }
+
+    [Fact]
+    public async Task ReplaceBoardAsync_ThrowsWhenBoardMissing()
+    {
+        var id = Guid.NewGuid();
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync((GameBoardRecord?)null);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.ReplaceBoardAsync(id, new CreateBoardCommand { Cells = [[true]] });
+
+        await act.Should().ThrowAsync<BoardNotFoundException>();
+    }
+
+    [Fact]
+    public async Task GetFinalStableStateAsync_RespectsCancellation()
+    {
+        var id = Guid.NewGuid();
+        var repo = RepoWith(id, TestBoards.HorizontalBlinker);
+        var sut = CreateSut(repo);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var act = async () => await sut.GetFinalStableStateAsync(id, maxAttempts: 10, cts.Token);
+
+        await act.Should().ThrowAsync<OperationCanceledException>();
+    }
 }
