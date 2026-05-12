@@ -4,12 +4,15 @@ import { toast } from 'sonner'
 import type { BoardState } from './api/types'
 import { BoardGrid } from './components/BoardGrid'
 import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
+import { InvadersPlayground } from './components/InvadersPlayground'
 import { MeteorLeaderboard } from './components/MeteorLeaderboard'
 import { toastConfirm } from './lib/toastConfirm'
 import { useBoardDetailQuery } from './query/useBoardDetailQuery'
 import { useBoardSummariesQuery } from './query/useBoardSummariesQuery'
 import { useGameBoardMutations } from './query/useGameBoardMutations'
 import './App.css'
+
+type ArcadeMode = 'cascade' | 'invaders'
 
 function emptyGrid(rows: number, cols: number): boolean[][] {
   return Array.from({ length: rows }, () => Array(cols).fill(false))
@@ -52,7 +55,7 @@ export default function App() {
   const [draftCells, setDraftCells] = useState<boolean[][]>(() => emptyGrid(12, 16))
   const [advanceSteps, setAdvanceSteps] = useState(5)
   const [finalAttempts, setFinalAttempts] = useState(500)
-  const [showArcade, setShowArcade] = useState(false)
+  const [arcadeMode, setArcadeMode] = useState<ArcadeMode | null>(null)
   const [lifeTicks, setLifeTicks] = useState(0)
 
   const boardIdForQuery = !createMode ? selectedId : null
@@ -221,7 +224,7 @@ export default function App() {
       try {
         const created = await createBoard.mutateAsync(cells)
         setSelectedId(created.id)
-        setShowArcade(false)
+        setArcadeMode(null)
         toast.success('Storm saved as a realm')
       } catch {
         /* toast from mutation onError */
@@ -245,8 +248,10 @@ export default function App() {
         </div>
 
         <div className="game__hud">
-          {showArcade ? (
+          {arcadeMode === 'cascade' ? (
             <span className="hud-pill hud-pill--live">Meteor shower</span>
+          ) : arcadeMode === 'invaders' ? (
+            <span className="hud-pill hud-pill--live">Meteor strike</span>
           ) : board ? (
             <>
               <span className="hud-pill">
@@ -264,8 +269,8 @@ export default function App() {
         </div>
 
         <div className="game__top-actions">
-          {showArcade ? (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setShowArcade(false)}>
+          {arcadeMode ? (
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setArcadeMode(null)}>
               ← Realms
             </button>
           ) : null}
@@ -344,15 +349,27 @@ export default function App() {
                 <h3>Side mode</h3>
                 <button
                   type="button"
-                  className={`btn ${showArcade ? 'btn--primary' : ''}`}
+                  className={`btn ${arcadeMode === 'cascade' ? 'btn--primary' : 'btn--ghost'}`}
                   style={{ width: '100%' }}
                   onClick={() => {
-                    setShowArcade(true)
+                    setArcadeMode('cascade')
                     setDrawerOpen(false)
                   }}
                   disabled={busy}
                 >
                   Meteor shower
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${arcadeMode === 'invaders' ? 'btn--primary' : 'btn--ghost'}`}
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                  onClick={() => {
+                    setArcadeMode('invaders')
+                    setDrawerOpen(false)
+                  }}
+                  disabled={busy}
+                >
+                  Meteor strike
                 </button>
               </div>
             </div>
@@ -361,13 +378,17 @@ export default function App() {
       )}
 
       <main className="stage">
-        {showArcade ? (
+        {arcadeMode === 'cascade' ? (
           <div className="stage__arena">
             <FallingBlocksPlayground
               busy={busy}
               onUploadToApi={uploadPlaygroundToApi}
-              onExitToMain={() => setShowArcade(false)}
+              onExitToMain={() => setArcadeMode(null)}
             />
+          </div>
+        ) : arcadeMode === 'invaders' ? (
+          <div className="stage__arena">
+            <InvadersPlayground busy={busy} onExitToMain={() => setArcadeMode(null)} />
           </div>
         ) : createMode ? (
           <div className="stage__arena">
@@ -409,7 +430,7 @@ export default function App() {
         ) : (
           <div className="stage__void">
             <h2>The silence is wide</h2>
-            <p>Open the archives and choose a saved realm, forge a fresh canvas, or chase the meteor shower.</p>
+            <p>Open the archives and choose a saved realm, forge a fresh canvas, or try a side mode.</p>
             <div className="stage__void-actions">
               <button type="button" className="btn btn--primary" onClick={() => setDrawerOpen(true)}>
                 Open archives
@@ -417,14 +438,11 @@ export default function App() {
               <button type="button" className="btn" onClick={openForge}>
                 Begin forging
               </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => {
-                  setShowArcade(true)
-                }}
-              >
+              <button type="button" className="btn btn--ghost" onClick={() => setArcadeMode('cascade')}>
                 Meteor shower
+              </button>
+              <button type="button" className="btn btn--ghost" onClick={() => setArcadeMode('invaders')}>
+                Meteor strike
               </button>
             </div>
             <MeteorLeaderboard top={12} className="stage__meteor-lb" title="Meteor hall of fame" />
@@ -432,7 +450,7 @@ export default function App() {
         )}
       </main>
 
-      {!showArcade && (board || createMode) ? (
+      {!arcadeMode && (board || createMode) ? (
         <footer className="dock">
           {board ? (
             <>
