@@ -4,8 +4,12 @@ import { toast } from 'sonner'
 import type { BoardState } from './api/types'
 import { BoardGrid } from './components/BoardGrid'
 import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
+import { InvadersLeaderboard } from './components/InvadersLeaderboard'
 import { InvadersPlayground } from './components/InvadersPlayground'
+import { InvadersSetupBuilder } from './components/InvadersSetupBuilder'
+import { MeteorBlockBuilder } from './components/MeteorBlockBuilder'
 import { MeteorLeaderboard } from './components/MeteorLeaderboard'
+import { loadInvadersSetup, loadMeteorCustomBlocks } from './lib/gameStorage'
 import { createLogger } from './lib/logger'
 import { toastConfirm } from './lib/toastConfirm'
 import { useBoardDetailQuery } from './query/useBoardDetailQuery'
@@ -15,7 +19,10 @@ import './App.css'
 
 const log = createLogger('app')
 
-type ArcadeMode = 'cascade' | 'invaders'
+type ArcadeRoute =
+  | { kind: 'hub' }
+  | { kind: 'meteor'; screen: 'menu' | 'play' | 'builder' }
+  | { kind: 'invaders'; screen: 'menu' | 'play' | 'builder' }
 
 function emptyGrid(rows: number, cols: number): boolean[][] {
   return Array.from({ length: rows }, () => Array(cols).fill(false))
@@ -58,7 +65,11 @@ export default function App() {
   const [draftCells, setDraftCells] = useState<boolean[][]>(() => emptyGrid(12, 16))
   const [advanceSteps, setAdvanceSteps] = useState(5)
   const [finalAttempts, setFinalAttempts] = useState(500)
-  const [arcadeMode, setArcadeMode] = useState<ArcadeMode | null>(null)
+  const [arcadeRoute, setArcadeRoute] = useState<ArcadeRoute>({ kind: 'hub' })
+  const [meteorCustomKey, setMeteorCustomKey] = useState(0)
+  const [invadersSetupKey, setInvadersSetupKey] = useState(0)
+  const meteorCustomBlocks = useMemo(() => loadMeteorCustomBlocks(), [meteorCustomKey])
+  const invadersSetup = useMemo(() => loadInvadersSetup(), [invadersSetupKey])
   const [lifeTicks, setLifeTicks] = useState(0)
 
   const boardIdForQuery = !createMode ? selectedId : null
@@ -99,6 +110,7 @@ export default function App() {
     setSelectedId(id)
     setCreateMode(false)
     setDrawerOpen(false)
+    setArcadeRoute({ kind: 'hub' })
   }, [])
 
   const applyDraftSize = useCallback(() => {
@@ -240,7 +252,7 @@ export default function App() {
         const created = await createBoard.mutateAsync(cells)
         log.info('Arcade board saved as realm:', created.id)
         setSelectedId(created.id)
-        setArcadeMode(null)
+        setArcadeRoute({ kind: 'hub' })
         toast.success('Storm saved as a realm')
       } catch {
         /* toast from mutation onError */
@@ -256,6 +268,9 @@ export default function App() {
     setDrawerOpen(true)
   }
 
+  const arcadePlayOpen =
+    (arcadeRoute.kind === 'meteor' || arcadeRoute.kind === 'invaders') && arcadeRoute.screen === 'play'
+
   return (
     <div className="game">
       <header className="game__top">
@@ -265,9 +280,9 @@ export default function App() {
         </div>
 
         <div className="game__hud">
-          {arcadeMode === 'cascade' ? (
+          {arcadeRoute.kind === 'meteor' && arcadeRoute.screen === 'play' ? (
             <span className="hud-pill hud-pill--live">Meteor shower</span>
-          ) : arcadeMode === 'invaders' ? (
+          ) : arcadeRoute.kind === 'invaders' && arcadeRoute.screen === 'play' ? (
             <span className="hud-pill hud-pill--live">Meteor strike</span>
           ) : board ? (
             <>
@@ -280,15 +295,17 @@ export default function App() {
             </>
           ) : createMode ? (
             <span className="hud-pill hud-pill--live">Forging</span>
+          ) : arcadeRoute.kind !== 'hub' ? (
+            <span className="hud-pill hud-pill--live">Arcade</span>
           ) : (
-            <span className="hud-pill">No realm open</span>
+            <span className="hud-pill">Arcade home</span>
           )}
         </div>
 
         <div className="game__top-actions">
-          {arcadeMode ? (
-            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setArcadeMode(null)}>
-              ← Realms
+          {!board && !createMode && arcadeRoute.kind !== 'hub' ? (
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setArcadeRoute({ kind: 'hub' })}>
+              ← Arcade home
             </button>
           ) : null}
           <button
@@ -363,13 +380,13 @@ export default function App() {
               </div>
 
               <div className="drawer__section">
-                <h3>Side mode</h3>
+                <h3>Arcade</h3>
                 <button
                   type="button"
-                  className={`btn ${arcadeMode === 'cascade' ? 'btn--primary' : 'btn--ghost'}`}
+                  className={`btn ${arcadeRoute.kind === 'meteor' ? 'btn--primary' : 'btn--ghost'}`}
                   style={{ width: '100%' }}
                   onClick={() => {
-                    setArcadeMode('cascade')
+                    setArcadeRoute({ kind: 'meteor', screen: 'menu' })
                     setDrawerOpen(false)
                   }}
                   disabled={busy}
@@ -378,10 +395,10 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  className={`btn ${arcadeMode === 'invaders' ? 'btn--primary' : 'btn--ghost'}`}
+                  className={`btn ${arcadeRoute.kind === 'invaders' ? 'btn--primary' : 'btn--ghost'}`}
                   style={{ width: '100%', marginTop: '0.5rem' }}
                   onClick={() => {
-                    setArcadeMode('invaders')
+                    setArcadeRoute({ kind: 'invaders', screen: 'menu' })
                     setDrawerOpen(false)
                   }}
                   disabled={busy}
@@ -395,17 +412,11 @@ export default function App() {
       )}
 
       <main className="stage">
-        {arcadeMode === 'cascade' ? (
+        {board ? (
           <div className="stage__arena">
-            <FallingBlocksPlayground
-              busy={busy}
-              onUploadToApi={uploadPlaygroundToApi}
-              onExitToMain={() => setArcadeMode(null)}
-            />
-          </div>
-        ) : arcadeMode === 'invaders' ? (
-          <div className="stage__arena">
-            <InvadersPlayground busy={busy} onExitToMain={() => setArcadeMode(null)} />
+            <div className="grid-shell">
+              <BoardGrid cells={displayCells} cellSize={18} />
+            </div>
           </div>
         ) : createMode ? (
           <div className="stage__arena">
@@ -438,36 +449,142 @@ export default function App() {
               <BoardGrid cells={displayCells} editable onToggleCell={toggleDraft} cellSize={18} />
             </div>
           </div>
-        ) : board ? (
+        ) : arcadeRoute.kind === 'meteor' && arcadeRoute.screen === 'play' ? (
           <div className="stage__arena">
-            <div className="grid-shell">
-              <BoardGrid cells={displayCells} cellSize={18} />
+            <FallingBlocksPlayground
+              key={meteorCustomKey}
+              busy={busy}
+              customShapes={meteorCustomBlocks}
+              onUploadToApi={uploadPlaygroundToApi}
+              onExitToMain={() => setArcadeRoute({ kind: 'meteor', screen: 'menu' })}
+            />
+          </div>
+        ) : arcadeRoute.kind === 'meteor' && arcadeRoute.screen === 'builder' ? (
+          <div className="stage__arena">
+            <MeteorBlockBuilder
+              onBack={() => setArcadeRoute({ kind: 'meteor', screen: 'menu' })}
+              onSaved={() => setMeteorCustomKey((k) => k + 1)}
+            />
+          </div>
+        ) : arcadeRoute.kind === 'meteor' && arcadeRoute.screen === 'menu' ? (
+          <div className="stage__arena games-submenu">
+            <div className="games-submenu__head">
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setArcadeRoute({ kind: 'hub' })}>
+                ← All games
+              </button>
+              <h2 className="games-submenu__title">Meteor shower</h2>
             </div>
+            <p className="cascade__hint">Stack meteors, clear full rows, and climb the saved scoreboard.</p>
+            <div className="games-submenu__actions">
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => setArcadeRoute({ kind: 'meteor', screen: 'play' })}
+                disabled={busy}
+              >
+                Start game
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setArcadeRoute({ kind: 'meteor', screen: 'builder' })}
+                disabled={busy}
+              >
+                Block builder
+              </button>
+            </div>
+            <MeteorLeaderboard top={12} className="games-submenu__lb" title="Meteor hall of fame" />
+          </div>
+        ) : arcadeRoute.kind === 'invaders' && arcadeRoute.screen === 'play' ? (
+          <div className="stage__arena">
+            <InvadersPlayground
+              key={invadersSetupKey}
+              busy={busy}
+              invadersSetup={invadersSetup}
+              onExitToMain={() => setArcadeRoute({ kind: 'invaders', screen: 'menu' })}
+            />
+          </div>
+        ) : arcadeRoute.kind === 'invaders' && arcadeRoute.screen === 'builder' ? (
+          <div className="stage__arena">
+            <InvadersSetupBuilder
+              onBack={() => setArcadeRoute({ kind: 'invaders', screen: 'menu' })}
+              onSaved={() => setInvadersSetupKey((k) => k + 1)}
+            />
+          </div>
+        ) : arcadeRoute.kind === 'invaders' && arcadeRoute.screen === 'menu' ? (
+          <div className="stage__arena games-submenu">
+            <div className="games-submenu__head">
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setArcadeRoute({ kind: 'hub' })}>
+                ← All games
+              </button>
+              <h2 className="games-submenu__title">Meteor strike</h2>
+            </div>
+            <p className="cascade__hint">Clear the formation before it reaches your ship. Scores are kept on this device.</p>
+            <div className="games-submenu__actions">
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => setArcadeRoute({ kind: 'invaders', screen: 'play' })}
+                disabled={busy}
+              >
+                Start game
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setArcadeRoute({ kind: 'invaders', screen: 'builder' })}
+                disabled={busy}
+              >
+                Spaceship &amp; formation builder
+              </button>
+            </div>
+            <InvadersLeaderboard top={12} className="games-submenu__lb" title="Strike hall of fame (device)" />
           </div>
         ) : (
-          <div className="stage__void">
-            <h2>The silence is wide</h2>
-            <p>Open the archives and choose a saved realm, forge a fresh canvas, or try a side mode.</p>
-            <div className="stage__void-actions">
-              <button type="button" className="btn btn--primary" onClick={() => setDrawerOpen(true)}>
-                Open archives
+          <div className="stage__void games-hub">
+            <h2 className="games-hub__title">Choose a game</h2>
+            <p className="games-hub__lead">
+              Meteor shower is a falling-block well. Meteor strike is a compact shooter. Conway&apos;s Life lives in the archives.
+            </p>
+            <div className="games-hub__cards">
+              <button
+                type="button"
+                className="games-hub__card"
+                onClick={() => setArcadeRoute({ kind: 'meteor', screen: 'menu' })}
+                disabled={busy}
+              >
+                <span className="games-hub__card-kicker">Stack &amp; clear</span>
+                <span className="games-hub__card-title">Meteor shower</span>
+                <span className="games-hub__card-sub">Lines, anchors, and a shared scoreboard.</span>
               </button>
-              <button type="button" className="btn" onClick={openForge}>
-                Begin forging
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setArcadeMode('cascade')}>
-                Meteor shower
-              </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setArcadeMode('invaders')}>
-                Meteor strike
+              <button
+                type="button"
+                className="games-hub__card"
+                onClick={() => setArcadeRoute({ kind: 'invaders', screen: 'menu' })}
+                disabled={busy}
+              >
+                <span className="games-hub__card-kicker">Defend the deck</span>
+                <span className="games-hub__card-title">Meteor strike</span>
+                <span className="games-hub__card-sub">Custom formations and ship — scores on this device.</span>
               </button>
             </div>
-            <MeteorLeaderboard top={12} className="stage__meteor-lb" title="Meteor hall of fame" />
+            <div className="games-hub__life-row">
+              <button type="button" className="btn btn--ghost" onClick={() => setDrawerOpen(true)}>
+                Life realms
+              </button>
+              <button type="button" className="btn" onClick={openForge}>
+                Forge a board
+              </button>
+            </div>
+            <div className="games-hub__scoreboards">
+              <MeteorLeaderboard top={8} title="Meteor hall of fame" />
+              <InvadersLeaderboard top={8} title="Strike hall of fame (device)" />
+            </div>
           </div>
         )}
       </main>
 
-      {!arcadeMode && (board || createMode) ? (
+      {!arcadePlayOpen && (board || createMode) ? (
         <footer className="dock">
           {board ? (
             <>

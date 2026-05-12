@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import { appendInvadersScore, type InvadersStoredSetup } from '../lib/gameStorage'
 import { createLogger } from '../lib/logger'
 import { BoardGrid } from './BoardGrid'
+import { InvadersLeaderboard } from './InvadersLeaderboard'
 import {
   INVADERS_COLS,
   INVADERS_ROWS,
-  SHIP_ROW,
   initialInvadersState,
   moveShip,
+  shipWorldCells,
   tickInvaders,
   tryFire,
   type InvadersState,
@@ -28,23 +30,25 @@ type Action =
   | { type: 'right' }
   | { type: 'fire' }
 
-function reducer(state: Game, action: Action): Game {
-  switch (action.type) {
-    case 'stop':
-      return null
-    case 'start':
-    case 'reset':
-      return initialInvadersState()
-    case 'tick':
-      return state ? tickInvaders(state) : state
-    case 'left':
-      return state ? moveShip(state, -1) : state
-    case 'right':
-      return state ? moveShip(state, 1) : state
-    case 'fire':
-      return state ? tryFire(state) : state
-    default:
-      return state
+function makeReducer(getSetup: () => InvadersStoredSetup | null | undefined) {
+  return function reducer(state: Game, action: Action): Game {
+    switch (action.type) {
+      case 'stop':
+        return null
+      case 'start':
+      case 'reset':
+        return initialInvadersState(getSetup() ?? undefined)
+      case 'tick':
+        return state ? tickInvaders(state) : state
+      case 'left':
+        return state ? moveShip(state, -1) : state
+      case 'right':
+        return state ? moveShip(state, 1) : state
+      case 'fire':
+        return state ? tryFire(state) : state
+      default:
+        return state
+    }
   }
 }
 
@@ -55,7 +59,11 @@ function emptyMask(): boolean[][] {
 function composite(state: InvadersState): { cells: boolean[][]; hot: boolean[][] } {
   const cells = state.aliens.map((row) => [...row])
   const hot = emptyMask()
-  hot[SHIP_ROW][state.shipCol] = true
+  for (const { r, c } of shipWorldCells(state.shipCol, state.shipOffsets)) {
+    if (r >= 0 && r < INVADERS_ROWS && c >= 0 && c < INVADERS_COLS) {
+      hot[r][c] = true
+    }
+  }
   for (const b of state.bullets) {
     if (b.r >= 0 && b.r < INVADERS_ROWS && b.c >= 0 && b.c < INVADERS_COLS) {
       hot[b.r][b.c] = true
@@ -66,13 +74,19 @@ function composite(state: InvadersState): { cells: boolean[][]; hot: boolean[][]
 
 type InvadersPlaygroundProps = {
   busy?: boolean
+  invadersSetup?: InvadersStoredSetup | null
   onExitToMain?: () => void
 }
 
-export function InvadersPlayground({ busy = false, onExitToMain }: InvadersPlaygroundProps) {
+export function InvadersPlayground({ busy = false, invadersSetup = null, onExitToMain }: InvadersPlaygroundProps) {
+  const setupRef = useRef(invadersSetup)
+  setupRef.current = invadersSetup
+  const getSetup = useCallback(() => setupRef.current, [])
+  const reducer = useMemo(() => makeReducer(getSetup), [getSetup])
   const [game, dispatch] = useReducer(reducer, null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef(game)
+  const scoreSavedRef = useRef(false)
   gameRef.current = game
 
   const playing = game !== null
@@ -89,6 +103,20 @@ export function InvadersPlayground({ busy = false, onExitToMain }: InvadersPlayg
     } else if (game?.status === 'lost') {
       log.info('Meteor strike: formation breached.', { score: game.score })
     }
+  }, [game?.status, game?.score])
+
+  useEffect(() => {
+    if (game?.status === 'playing' || !game) {
+      scoreSavedRef.current = false
+    }
+  }, [game?.status, game])
+
+  useEffect(() => {
+    const st = game?.status
+    if (st !== 'won' && st !== 'lost') return
+    if (scoreSavedRef.current) return
+    scoreSavedRef.current = true
+    appendInvadersScore({ score: game!.score, status: st })
   }, [game?.status, game?.score])
 
   useEffect(() => {
@@ -200,6 +228,9 @@ export function InvadersPlayground({ busy = false, onExitToMain }: InvadersPlayg
               <p className="meteor-game-over__scoreline">
                 Final score <strong className="mono">{game.score}</strong>
               </p>
+              <div className="meteor-game-over__mini-lb">
+                <InvadersLeaderboard top={8} title="Local hall of fame" />
+              </div>
               <div className="meteor-game-over__actions">
                 <button type="button" className="btn btn--primary" onClick={() => dispatch({ type: 'reset' })}>
                   Fly again
@@ -220,6 +251,9 @@ export function InvadersPlayground({ busy = false, onExitToMain }: InvadersPlayg
               <p className="meteor-game-over__scoreline">
                 Score <strong className="mono">{game.score}</strong>
               </p>
+              <div className="meteor-game-over__mini-lb">
+                <InvadersLeaderboard top={8} title="Local hall of fame" />
+              </div>
               <div className="meteor-game-over__actions">
                 <button type="button" className="btn btn--primary" onClick={() => dispatch({ type: 'reset' })}>
                   Retry

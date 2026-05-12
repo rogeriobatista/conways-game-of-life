@@ -8,6 +8,7 @@ import { MeteorLeaderboard } from './MeteorLeaderboard'
 
 const log = createLogger('meteor')
 import {
+  buildMeteorShapePool,
   canPlace,
   clearFullRows,
   computeHardDropRow,
@@ -16,7 +17,7 @@ import {
   emptyGrid,
   mergePiece,
   rotateCw,
-  trySpawnPiece,
+  trySpawnPieceFromPool,
 } from '../play/fallingLogic'
 import { queryKeys } from '../query/keys'
 
@@ -68,9 +69,11 @@ type GameAction =
   | { type: 'tick' }
   | { type: 'hardDrop' }
 
-function initialGame(): GameState {
+type GetShapePool = () => boolean[][][]
+
+function initialGame(getPool: GetShapePool): GameState {
   const cleared = emptyGrid(PLAY_ROWS, PLAY_COLS)
-  const spawned = trySpawnPiece(cleared, PLAY_ROWS, PLAY_COLS)
+  const spawned = trySpawnPieceFromPool(cleared, PLAY_ROWS, PLAY_COLS, getPool())
   if (!spawned) {
     throw new Error('Empty well must accept a spawn.')
   }
@@ -88,6 +91,7 @@ function lockPieceAndSpawn(
   landed: boolean[][],
   piece: Piece,
   meta: Pick<PlayingState, 'locks' | 'score' | 'placedCellTotal'>,
+  getPool: GetShapePool,
 ): GameState {
   const merged = mergePiece(landed, piece.cells, piece.row, piece.col)
   const rowsCleared = countFullRows(merged)
@@ -100,7 +104,7 @@ function lockPieceAndSpawn(
   const nextScore = meta.score + rowsCleared * 100 + placementBonus
   const nextLocks = meta.locks + 1
 
-  const spawned = trySpawnPiece(afterLines, PLAY_ROWS, PLAY_COLS)
+  const spawned = trySpawnPieceFromPool(afterLines, PLAY_ROWS, PLAY_COLS, getPool())
   if (!spawned) {
     return {
       status: 'over',
@@ -121,9 +125,9 @@ function lockPieceAndSpawn(
   }
 }
 
-function gameReducer(state: GameState | null, action: GameAction): GameState | null {
+function gameReducer(state: GameState | null, action: GameAction, getPool: GetShapePool): GameState | null {
   if (action.type === 'stop') return null
-  if (action.type === 'start' || action.type === 'reset') return initialGame()
+  if (action.type === 'start' || action.type === 'reset') return initialGame(getPool)
   if (!state) return null
   if (state.status === 'over') return state
 
@@ -143,12 +147,12 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
       if (canPlace(landed, piece.cells, piece.row + 1, piece.col)) {
         return { ...state, piece: { ...piece, row: piece.row + 1 } }
       }
-      return lockPieceAndSpawn(landed, piece, { locks, score, placedCellTotal })
+      return lockPieceAndSpawn(landed, piece, { locks, score, placedCellTotal }, getPool)
     }
     case 'hardDrop': {
       let row = piece.row
       while (canPlace(landed, piece.cells, row + 1, piece.col)) row += 1
-      return lockPieceAndSpawn(landed, { ...piece, row }, { locks, score, placedCellTotal })
+      return lockPieceAndSpawn(landed, { ...piece, row }, { locks, score, placedCellTotal }, getPool)
     }
     case 'rotate': {
       const rotated = rotateCw(piece.cells)
@@ -192,13 +196,27 @@ function getComposite(game: GameState): { cells: boolean[][]; hot: boolean[][] }
 
 type FallingBlocksPlaygroundProps = {
   busy?: boolean
+  /** Extra meteor shapes (trimmed); merged with built-in pool. */
+  customShapes?: boolean[][][]
   onUploadToApi: (cells: boolean[][]) => Promise<void>
   /** Called after user leaves from game-over (main realms UI). */
   onExitToMain?: () => void
 }
 
-export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToMain }: FallingBlocksPlaygroundProps) {
-  const [game, dispatch] = useReducer(gameReducer, null)
+export function FallingBlocksPlayground({
+  busy = false,
+  customShapes,
+  onUploadToApi,
+  onExitToMain,
+}: FallingBlocksPlaygroundProps) {
+  const pool = useMemo(() => buildMeteorShapePool(customShapes), [customShapes])
+  const poolRef = useRef(pool)
+  poolRef.current = pool
+  const getPool = useCallback(() => poolRef.current, [])
+  const [game, dispatch] = useReducer(
+    (s: GameState | null, a: GameAction) => gameReducer(s, a, getPool),
+    null,
+  )
   const [difficulty, setDifficulty] = useState<MeteorDifficultyId>('normal')
   const [manualOpen, setManualOpen] = useState(false)
   const [hotDropY, setHotDropY] = useState(0)

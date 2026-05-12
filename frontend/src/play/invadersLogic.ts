@@ -1,4 +1,5 @@
-/** Space-invaders style: boolean grid of aliens + ship column + bullets moving up. */
+/** Space-invaders style: boolean grid of aliens + multi-cell ship + bullets moving up. */
+import { trimShape } from './fallingLogic'
 
 export const INVADERS_ROWS = 14
 export const INVADERS_COLS = 11
@@ -8,9 +9,20 @@ export type InvadersStatus = 'playing' | 'won' | 'lost'
 
 export type Bullet = { r: number; c: number }
 
+export type ShipOffset = { dr: number; dc: number }
+
+export type InvadersConfig = {
+  /** When set and non-empty, replaces the default formation (clamped to grid size). */
+  aliens?: boolean[][]
+  /** Small bitmap; last row is the deck at `SHIP_ROW`. Trimmed; at least one live cell on the deck row. */
+  shipMask?: boolean[][]
+}
+
 export type InvadersState = {
   aliens: boolean[][]
+  /** Left column of the ship bounding box in world coordinates. */
   shipCol: number
+  shipOffsets: ShipOffset[]
   bullets: Bullet[]
   /** Horizontal step for the alien formation (+1 right, -1 left). */
   alienDir: 1 | -1
@@ -39,10 +51,112 @@ export function initialAliens(): boolean[][] {
   return g
 }
 
-export function initialInvadersState(): InvadersState {
+export function alienGridHasLive(custom: boolean[][] | undefined): boolean {
+  if (!custom?.length) return false
+  for (let r = 0; r < Math.min(custom.length, INVADERS_ROWS); r++) {
+    const row = custom[r]
+    if (!row) continue
+    for (let c = 0; c < Math.min(row.length, INVADERS_COLS); c++) {
+      if (row[c]) return true
+    }
+  }
+  return false
+}
+
+/** Copy custom mask into the arena, or use the classic staggered wave. */
+export function buildAlienFormation(custom: boolean[][] | undefined): boolean[][] {
+  if (!alienGridHasLive(custom)) return initialAliens()
+  const g = emptyAlienGrid()
+  for (let r = 0; r < INVADERS_ROWS; r++) {
+    for (let c = 0; c < INVADERS_COLS; c++) {
+      g[r][c] = Boolean(custom![r]?.[c])
+    }
+  }
+  return g
+}
+
+function defaultShipOffsets(): ShipOffset[] {
+  return [{ dr: 0, dc: 0 }]
+}
+
+/**
+ * Bottom row of the trimmed mask (last index) must contain at least one live cell (the deck).
+ * `dc` is relative to the left edge of the bounding box.
+ */
+export function shipOffsetsFromMask(mask: boolean[][] | undefined): ShipOffset[] | null {
+  if (!mask?.length) return null
+  const t = trimShape(mask)
+  if (!t?.length) return null
+  const h = t.length
+  const bottom = t[h - 1]
+  if (!bottom?.some(Boolean)) return null
+
+  let minC = INVADERS_COLS
+  let maxC = -1
+  for (const row of t) {
+    for (let c = 0; c < row.length; c++) {
+      if (!row[c]) continue
+      minC = Math.min(minC, c)
+      maxC = Math.max(maxC, c)
+    }
+  }
+  if (maxC < 0) return null
+
+  const offsets: ShipOffset[] = []
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < t[r].length; c++) {
+      if (!t[r][c]) continue
+      offsets.push({ dr: r - (h - 1), dc: c - minC })
+    }
+  }
+  return offsets
+}
+
+export function shipBboxWidth(offsets: ShipOffset[]): number {
+  if (offsets.length === 0) return 1
+  let maxDc = 0
+  for (const o of offsets) maxDc = Math.max(maxDc, o.dc)
+  return maxDc + 1
+}
+
+function initialShipCol(offsets: ShipOffset[]): number {
+  const w = shipBboxWidth(offsets)
+  return Math.max(0, Math.floor((INVADERS_COLS - w) / 2))
+}
+
+export function shipWorldCells(shipCol: number, offsets: ShipOffset[]): { r: number; c: number }[] {
+  return offsets.map(({ dr, dc }) => ({ r: SHIP_ROW + dr, c: shipCol + dc }))
+}
+
+function shipInBounds(shipCol: number, offsets: ShipOffset[]): boolean {
+  for (const { r, c } of shipWorldCells(shipCol, offsets)) {
+    if (c < 0 || c >= INVADERS_COLS || r < 0 || r >= INVADERS_ROWS) return false
+  }
+  return true
+}
+
+/** Topmost grid row occupied by the ship (smallest row index). */
+export function minShipWorldRow(offsets: ShipOffset[]): number {
+  if (offsets.length === 0) return SHIP_ROW
+  return Math.min(...offsets.map((o) => SHIP_ROW + o.dr))
+}
+
+function aliensOverlapShip(aliens: boolean[][], shipCol: number, offsets: ShipOffset[]): boolean {
+  for (const { r, c } of shipWorldCells(shipCol, offsets)) {
+    if (r >= 0 && r < INVADERS_ROWS && c >= 0 && c < INVADERS_COLS && aliens[r][c]) return true
+  }
+  return false
+}
+
+export function initialInvadersState(config?: InvadersConfig | null): InvadersState {
+  const aliens = buildAlienFormation(config?.aliens)
+  const fromMask = shipOffsetsFromMask(config?.shipMask)
+  const shipOffsets = fromMask ?? defaultShipOffsets()
+  const shipCol = initialShipCol(shipOffsets)
   return {
-    aliens: initialAliens(),
-    shipCol: Math.floor(INVADERS_COLS / 2),
+    aliens,
+    shipCol: shipInBounds(shipCol, shipOffsets) ? shipCol : Math.max(0, Math.min(INVADERS_COLS - shipBboxWidth(shipOffsets), shipCol)),
+    shipOffsets,
     bullets: [],
     alienDir: 1,
     alienMoveTimer: ALIEN_MOVE_INTERVAL,
@@ -106,7 +220,7 @@ function shiftAliensDown(aliens: boolean[][]): boolean[][] {
 export function tickInvaders(prev: InvadersState): InvadersState {
   if (prev.status !== 'playing') return prev
 
-  let { aliens, shipCol, bullets, alienDir, alienMoveTimer, score } = prev
+  let { aliens, shipCol, shipOffsets, bullets, alienDir, alienMoveTimer, score } = prev
 
   // Bullets up
   bullets = bullets
@@ -133,6 +247,16 @@ export function tickInvaders(prev: InvadersState): InvadersState {
     return { ...prev, aliens, bullets, score, status: 'won' }
   }
 
+  if (aliensOverlapShip(aliens, shipCol, shipOffsets)) {
+    return { ...prev, aliens, bullets, score, status: 'lost' }
+  }
+
+  const topDeck = minShipWorldRow(shipOffsets)
+  const b0 = alienBounds(aliens)
+  if (b0 && b0.maxR >= topDeck) {
+    return { ...prev, aliens, bullets, score, status: 'lost' }
+  }
+
   // Alien march
   let nextTimer = alienMoveTimer - 1
   if (nextTimer <= 0) {
@@ -151,32 +275,38 @@ export function tickInvaders(prev: InvadersState): InvadersState {
       aliens = shiftAliensHoriz(aliens, alienDir)
     }
   } else {
-    return { aliens, shipCol, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'playing' }
+    return { aliens, shipCol, shipOffsets, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'playing' }
   }
 
   const b2 = alienBounds(aliens)
   if (!b2 || countAliens(aliens) === 0) {
-    return { aliens, shipCol, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'won' }
-  }
-  if (b2.maxR >= SHIP_ROW) {
-    return { aliens, shipCol, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'lost' }
+    return { aliens, shipCol, shipOffsets, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'won' }
   }
 
-  return { aliens, shipCol, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'playing' }
+  const topDeck2 = minShipWorldRow(shipOffsets)
+  if (aliensOverlapShip(aliens, shipCol, shipOffsets) || b2.maxR >= topDeck2) {
+    return { aliens, shipCol, shipOffsets, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'lost' }
+  }
+
+  return { aliens, shipCol, shipOffsets, bullets, alienDir, alienMoveTimer: nextTimer, score, status: 'playing' }
 }
 
 export function moveShip(prev: InvadersState, dir: -1 | 1): InvadersState {
   if (prev.status !== 'playing') return prev
   const nc = prev.shipCol + dir
-  if (nc < 0 || nc >= INVADERS_COLS) return prev
+  if (!shipInBounds(nc, prev.shipOffsets)) return prev
   return { ...prev, shipCol: nc }
 }
 
 export function tryFire(prev: InvadersState): InvadersState {
   if (prev.status !== 'playing') return prev
   if (prev.bullets.length >= MAX_BULLETS) return prev
-  const spawnR = SHIP_ROW - 1
-  const spawnC = prev.shipCol
+  const { shipCol, shipOffsets } = prev
+  const topDr = Math.min(...shipOffsets.map((o) => o.dr))
+  const tops = shipOffsets.filter((o) => o.dr === topDr)
+  const pick = tops[Math.floor((tops.length - 1) / 2)]!
+  const spawnR = SHIP_ROW + topDr - 1
+  const spawnC = shipCol + pick.dc
   const bullets = [...prev.bullets, { r: spawnR, c: spawnC }]
   return { ...prev, bullets }
 }

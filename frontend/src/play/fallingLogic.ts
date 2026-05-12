@@ -89,7 +89,8 @@ export function clearFullRows(landed: boolean[][]): boolean[][] {
   return [...pad, ...incomplete]
 }
 
-const SHAPES: boolean[][][] = [
+/** Built-in meteor pieces (also used when no custom blocks exist). */
+export const DEFAULT_METEOR_SHAPES: boolean[][][] = [
   [
     [true, true],
     [true, true],
@@ -111,9 +112,44 @@ const SHAPES: boolean[][][] = [
   ],
 ]
 
-export function randomShape(): boolean[][] {
-  const pick = SHAPES[Math.floor(Math.random() * SHAPES.length)]!
+/** Tight bounding box around live cells (at least one live required). */
+export function trimShape(shape: boolean[][]): boolean[][] | null {
+  let minR = shape.length
+  let maxR = -1
+  let minC = shape[0]?.length ?? 0
+  let maxC = -1
+  for (let r = 0; r < shape.length; r++) {
+    for (let c = 0; c < (shape[r]?.length ?? 0); c++) {
+      if (!shape[r][c]) continue
+      minR = Math.min(minR, r)
+      maxR = Math.max(maxR, r)
+      minC = Math.min(minC, c)
+      maxC = Math.max(maxC, c)
+    }
+  }
+  if (maxR < 0) return null
+  return shape.slice(minR, maxR + 1).map((row) => row.slice(minC, maxC + 1))
+}
+
+/** Default shapes plus any non-empty trimmed custom blocks. */
+export function buildMeteorShapePool(custom: boolean[][][] | undefined): boolean[][][] {
+  const base = DEFAULT_METEOR_SHAPES.map((s) => s.map((row) => [...row]))
+  if (!custom?.length) return base
+  const extra: boolean[][][] = []
+  for (const raw of custom) {
+    const t = trimShape(raw)
+    if (t && countLiveCells(t) > 0) extra.push(t.map((row) => [...row]))
+  }
+  return extra.length ? [...base, ...extra] : base
+}
+
+export function randomShapeFromPool(pool: boolean[][][]): boolean[][] {
+  const pick = pool[Math.floor(Math.random() * pool.length)]!
   return pick.map((row) => [...row])
+}
+
+export function randomShape(): boolean[][] {
+  return randomShapeFromPool(DEFAULT_METEOR_SHAPES)
 }
 
 export type SpawnedPiece = { cells: boolean[][]; row: number; col: number }
@@ -127,7 +163,17 @@ export function trySpawnPiece(
   _rows: number,
   cols: number,
 ): { landed: boolean[][]; piece: SpawnedPiece } | null {
-  const cells = randomShape()
+  return trySpawnPieceFromPool(landed, _rows, cols, DEFAULT_METEOR_SHAPES)
+}
+
+export function trySpawnPieceFromPool(
+  landed: boolean[][],
+  _rows: number,
+  cols: number,
+  pool: boolean[][][],
+): { landed: boolean[][]; piece: SpawnedPiece } | null {
+  if (pool.length === 0) return null
+  const cells = randomShapeFromPool(pool)
   const w = shapeWidth(cells)
   if (w > cols) return null
 
