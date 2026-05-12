@@ -1,11 +1,11 @@
-using ConwayGameOfLife.Application.Persistence.Models;
+using ConwayGameOfLife.Application.Boards;
 using ConwayGameOfLife.Application.Persistence.Records;
 
 namespace ConwayGameOfLife.Application.Persistence.Repositories;
 
 public interface IGameBoardRepository
 {
-    Task<IReadOnlyList<BoardListEntry>> ListSummariesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BoardSummary>> ListSummariesAsync(CancellationToken cancellationToken = default);
 
     Task<GameBoardRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 

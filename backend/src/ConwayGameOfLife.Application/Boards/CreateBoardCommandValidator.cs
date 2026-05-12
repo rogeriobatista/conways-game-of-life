@@ -1,10 +1,9 @@
-using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Options;
 using ConwayGameOfLife.Application.Validation;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 
-namespace ConwayGameOfLife.Application.Validators;
+namespace ConwayGameOfLife.Application.Boards;
 
 public sealed class CreateBoardCommandValidator : AbstractValidator<CreateBoardCommand>
 {

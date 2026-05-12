@@ -1,10 +1,8 @@
-using ConwayGameOfLife.Application.Commands;
+using ConwayGameOfLife.Application.Boards;
 using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
-using ConwayGameOfLife.Application.Persistence.Models;
 using ConwayGameOfLife.Application.Persistence.Records;
 using ConwayGameOfLife.Application.Persistence.Repositories;
-using ConwayGameOfLife.Application.Responses;
 using ConwayGameOfLife.Application.Validation;
 using ConwayGameOfLife.Domain.Entities;
 using ConwayGameOfLife.Domain.Simulation;
@@ -28,11 +26,11 @@ public sealed class GameService(
         return ToResponse(record);
     }
 
-    public async Task<IReadOnlyList<BoardSummaryResponse>> ListBoardsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BoardSummary>> ListBoardsAsync(CancellationToken cancellationToken = default)
     {
         var list = await repository.ListSummariesAsync(cancellationToken).ConfigureAwait(false);
         logger.LogDebug("Listed {Count} board(s).", list.Count);
-        return list.Select(static e => new BoardSummaryResponse(e.Id, e.Rows, e.Columns, e.UpdatedAtUtc)).ToList();
+        return list;
     }
 
     public async Task<BoardCreatedResponse> CreateBoardAsync(CreateBoardCommand command, CancellationToken cancellationToken = default)

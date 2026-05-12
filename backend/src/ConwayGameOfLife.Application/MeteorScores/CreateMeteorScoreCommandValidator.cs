@@ -1,7 +1,6 @@
-using ConwayGameOfLife.Application.Commands;
 using FluentValidation;
 
-namespace ConwayGameOfLife.Application.Validators;
+namespace ConwayGameOfLife.Application.MeteorScores;
 
 public sealed class CreateMeteorScoreCommandValidator : AbstractValidator<CreateMeteorScoreCommand>
 {

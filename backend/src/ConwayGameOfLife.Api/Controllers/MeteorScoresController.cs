@@ -1,7 +1,6 @@
-using ConwayGameOfLife.Application.Commands;
-using ConwayGameOfLife.Application.Services;
+using ConwayGameOfLife.Application.MeteorScores;
 using ConwayGameOfLife.Application.Options;
-using ConwayGameOfLife.Application.Responses;
+using ConwayGameOfLife.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -15,9 +14,9 @@ public sealed class MeteorScoresController(
 {
     /// <summary>Persists a finished Meteor shower session for the scoreboard.</summary>
     [HttpPost]
-    [ProducesResponseType(typeof(MeteorScoreResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(MeteorScore), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<MeteorScoreResponse>> RecordScore(
+    public async Task<ActionResult<MeteorScore>> RecordScore(
         [FromBody] CreateMeteorScoreCommand command,
         CancellationToken cancellationToken)
     {
@@ -27,8 +26,8 @@ public sealed class MeteorScoresController(
 
     /// <summary>Returns the top scores (highest first). Defaults to <c>Game:DefaultLeaderboardTop</c> entries.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<MeteorScoreResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<MeteorScoreResponse>>> ListTop(
+    [ProducesResponseType(typeof(IReadOnlyList<MeteorScore>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<MeteorScore>>> ListTop(
         [FromQuery] int? top,
         CancellationToken cancellationToken)
     {

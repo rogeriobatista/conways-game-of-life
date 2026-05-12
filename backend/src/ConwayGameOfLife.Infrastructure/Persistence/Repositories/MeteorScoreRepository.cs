@@ -1,4 +1,4 @@
-using ConwayGameOfLife.Application.Persistence.Models;
+using ConwayGameOfLife.Application.MeteorScores;
 using ConwayGameOfLife.Application.Persistence.Repositories;
 using ConwayGameOfLife.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +7,7 @@ namespace ConwayGameOfLife.Infrastructure.Persistence.Repositories;
 
 public sealed class MeteorScoreRepository(GameDbContext dbContext) : IMeteorScoreRepository
 {
-    public async Task<MeteorScoreEntry> AddAsync(int score, int locks, int placedCellTotal, CancellationToken cancellationToken = default)
+    public async Task<MeteorScore> AddAsync(int score, int locks, int placedCellTotal, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var entity = new MeteorScoreEntity
@@ -22,10 +22,10 @@ public sealed class MeteorScoreRepository(GameDbContext dbContext) : IMeteorScor
         dbContext.MeteorScores.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        return ToEntry(entity);
+        return ToMeteorScore(entity);
     }
 
-    public async Task<IReadOnlyList<MeteorScoreEntry>> ListTopByScoreAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MeteorScore>> ListTopByScoreAsync(int take, CancellationToken cancellationToken = default)
     {
         var capped = Math.Clamp(take, 1, 100);
         var rows = await dbContext.MeteorScores.AsNoTracking()
@@ -35,9 +35,9 @@ public sealed class MeteorScoreRepository(GameDbContext dbContext) : IMeteorScor
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return rows.ConvertAll(ToEntry);
+        return rows.ConvertAll(ToMeteorScore);
     }
 
-    private static MeteorScoreEntry ToEntry(MeteorScoreEntity e) =>
+    private static MeteorScore ToMeteorScore(MeteorScoreEntity e) =>
         new(e.Id, e.Score, e.Locks, e.PlacedCellTotal, DateTime.SpecifyKind(e.CreatedAtUtc, DateTimeKind.Utc));
 }

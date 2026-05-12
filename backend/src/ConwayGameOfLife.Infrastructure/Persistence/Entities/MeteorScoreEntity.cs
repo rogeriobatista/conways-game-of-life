@@ -1,7 +1,6 @@
 namespace ConwayGameOfLife.Infrastructure.Persistence.Entities;
 
-public sealed class MeteorScoreEntity
-{
+public sealed class MeteorScoreEntity{
     public Guid Id { get; set; }
 
     public int Score { get; set; }

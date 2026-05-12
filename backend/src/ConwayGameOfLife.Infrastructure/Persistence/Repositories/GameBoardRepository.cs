@@ -1,6 +1,6 @@
 using System.Text.Json;
+using ConwayGameOfLife.Application.Boards;
 using ConwayGameOfLife.Application.Exceptions;
-using ConwayGameOfLife.Application.Persistence.Models;
 using ConwayGameOfLife.Application.Persistence.Records;
 using ConwayGameOfLife.Application.Persistence.Repositories;
 using ConwayGameOfLife.Domain.Entities;
@@ -13,7 +13,7 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public async Task<IReadOnlyList<BoardListEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BoardSummary>> ListSummariesAsync(CancellationToken cancellationToken = default)
     {
         var rows = await dbContext.Boards.AsNoTracking()
             .OrderByDescending(b => b.UpdatedAtUtc)
@@ -24,7 +24,7 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
         return rows.ConvertAll(static r =>
         {
             var (rowCount, columnCount) = ReadDimensionsFromStateJson(r.StateJson);
-            return new BoardListEntry(r.Id, rowCount, columnCount, r.UpdatedAtUtc);
+            return new BoardSummary(r.Id, rowCount, columnCount, r.UpdatedAtUtc);
         });
     }
 

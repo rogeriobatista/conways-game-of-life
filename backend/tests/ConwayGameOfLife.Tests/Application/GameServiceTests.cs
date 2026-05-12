@@ -1,10 +1,8 @@
-using ConwayGameOfLife.Application.Commands;
+using ConwayGameOfLife.Application.Boards;
 using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
-using ConwayGameOfLife.Application.Persistence.Models;
 using ConwayGameOfLife.Application.Persistence.Records;
 using ConwayGameOfLife.Application.Persistence.Repositories;
-using ConwayGameOfLife.Application.Responses;
 using ConwayGameOfLife.Application.Services;
 using ConwayGameOfLife.Domain.Entities;
 using ConwayGameOfLife.Domain.Simulation;
@@ -66,7 +64,7 @@ public sealed class GameServiceTests
     {
         var id = Guid.NewGuid();
         var updated = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
-        var summaries = new List<BoardListEntry> { new(id, Rows: 3, Columns: 3, updated) };
+        var summaries = new List<BoardSummary> { new(id, Rows: 3, Columns: 3, updated) };
 
         var repo = new Mock<IGameBoardRepository>();
         repo.Setup(r => r.ListSummariesAsync(It.IsAny<CancellationToken>()))

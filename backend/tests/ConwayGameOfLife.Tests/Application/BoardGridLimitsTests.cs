@@ -1,4 +1,4 @@
-using ConwayGameOfLife.Application.Commands;
+using ConwayGameOfLife.Application.Boards;
 using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
 using ConwayGameOfLife.Application.Persistence.Records;

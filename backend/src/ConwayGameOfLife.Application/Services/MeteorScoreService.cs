@@ -1,7 +1,5 @@
-using ConwayGameOfLife.Application.Commands;
-using ConwayGameOfLife.Application.Persistence.Models;
+using ConwayGameOfLife.Application.MeteorScores;
 using ConwayGameOfLife.Application.Persistence.Repositories;
-using ConwayGameOfLife.Application.Responses;
 using Microsoft.Extensions.Logging;
 
 namespace ConwayGameOfLife.Application.Services;
@@ -10,7 +8,7 @@ public sealed class MeteorScoreService(
     IMeteorScoreRepository repository,
     ILogger<MeteorScoreService> logger) : IMeteorScoreService
 {
-    public async Task<MeteorScoreResponse> RecordScoreAsync(
+    public async Task<MeteorScore> RecordScoreAsync(
         CreateMeteorScoreCommand command,
         CancellationToken cancellationToken = default)
     {
@@ -27,10 +25,10 @@ public sealed class MeteorScoreService(
             cancellationToken).ConfigureAwait(false);
 
         logger.LogDebug("Meteor score recorded with Id={Id}.", row.Id);
-        return ToResponse(row);
+        return row;
     }
 
-    public async Task<IReadOnlyList<MeteorScoreResponse>> ListTopScoresAsync(
+    public async Task<IReadOnlyList<MeteorScore>> ListTopScoresAsync(
         int top,
         CancellationToken cancellationToken = default)
     {
@@ -39,9 +37,6 @@ public sealed class MeteorScoreService(
         var scores = await repository.ListTopByScoreAsync(top, cancellationToken).ConfigureAwait(false);
 
         logger.LogDebug("Returned {Count} Meteor score(s).", scores.Count);
-        return scores.Select(ToResponse).ToList();
+        return scores;
     }
-
-    private static MeteorScoreResponse ToResponse(MeteorScoreEntry e) =>
-        new(e.Id, e.Score, e.Locks, e.PlacedCellTotal, e.CreatedAtUtc);
 }

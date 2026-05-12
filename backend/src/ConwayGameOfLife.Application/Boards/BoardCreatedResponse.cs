@@ -1,3 +1,3 @@
-namespace ConwayGameOfLife.Application.Responses;
+namespace ConwayGameOfLife.Application.Boards;
 
 public sealed record BoardCreatedResponse(Guid Id);

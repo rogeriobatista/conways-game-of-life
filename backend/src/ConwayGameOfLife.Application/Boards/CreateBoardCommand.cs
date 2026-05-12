@@ -1,4 +1,4 @@
-namespace ConwayGameOfLife.Application.Commands;
+namespace ConwayGameOfLife.Application.Boards;
 
 public sealed class CreateBoardCommand
 {

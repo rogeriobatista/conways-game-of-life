@@ -1,7 +1,6 @@
-using ConwayGameOfLife.Application.Commands;
-using ConwayGameOfLife.Application.Services;
+using ConwayGameOfLife.Application.Boards;
 using ConwayGameOfLife.Application.Options;
-using ConwayGameOfLife.Application.Responses;
+using ConwayGameOfLife.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -13,8 +12,8 @@ public sealed class GameController(IGameService gameService, IOptions<GameLimits
 {
     /// <summary>Lists all registered boards (most recently updated first). Cell data is omitted.</summary>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<BoardSummaryResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<IReadOnlyList<BoardSummaryResponse>>> ListBoards(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(IReadOnlyList<BoardSummary>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<BoardSummary>>> ListBoards(CancellationToken cancellationToken)
     {
         var boards = await gameService.ListBoardsAsync(cancellationToken).ConfigureAwait(false);
         return Ok(boards);
