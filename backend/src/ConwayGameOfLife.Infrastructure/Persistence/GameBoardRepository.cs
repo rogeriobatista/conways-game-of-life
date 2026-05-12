@@ -58,6 +58,19 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var entity = await dbContext.Boards.FirstOrDefaultAsync(b => b.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entity is null)
+            return false;
+
+        dbContext.Boards.Remove(entity);
+        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     private static GameBoardRecord ToRecord(GameBoardEntity entity)
     {
         var cells = JsonSerializer.Deserialize<bool[][]>(entity.StateJson, JsonOptions)

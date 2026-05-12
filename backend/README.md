@@ -39,6 +39,8 @@ There are no connection strings or limits hardcoded in code; they come from conf
 | `GET` | `/api/game/boards` | Lists all registered boards: `id`, `rows`, `columns`, `updatedAtUtc` (ISO UTC). Most recently updated first. Omits cell data. |
 | `POST` | `/api/game/boards` | Upload a board (`cells` as jagged `bool[][]`). Returns `{ "id": "<guid>" }` with `201 Created` and `Location` header. |
 | `GET` | `/api/game/boards/{id}` | Returns the current persisted grid (no evolution). |
+| `PUT` | `/api/game/boards/{id}` | Replaces the entire grid (`cells` body); keeps the same id. |
+| `DELETE` | `/api/game/boards/{id}` | Deletes the board permanently (`204 No Content`). |
 | `GET` | `/api/game/boards/{id}/next` | Computes the next generation, **persists** it, returns current state. |
 | `GET` | `/api/game/boards/{id}/advance/{steps}` | Advances `steps` generations, persists result. |
 | `GET` | `/api/game/boards/{id}/final?maxAttempts=` | Advances until a **stable** generation or fails with `400` if not reached within `maxAttempts`. If `maxAttempts` is omitted, `Game:DefaultFinalStateMaxAttempts` is used. |

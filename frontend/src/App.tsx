@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as gameApi from './api/gameApi'
 import type { BoardState, BoardSummary } from './api/types'
 import { BoardGrid } from './components/BoardGrid'
+import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
 import './App.css'
 
 function emptyGrid(rows: number, cols: number): boolean[][] {
@@ -39,6 +40,7 @@ export default function App() {
   const [finalAttempts, setFinalAttempts] = useState(500)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showArcade, setShowArcade] = useState(false)
 
   const refreshList = useCallback(async () => {
     setError(null)
@@ -137,6 +139,40 @@ export default function App() {
     [selectedId, refreshList],
   )
 
+  const clearBoard = useCallback(async () => {
+    if (!board) return
+    if (!window.confirm('Clear every cell on this board? The board id stays the same.')) return
+    setError(null)
+    setBusy(true)
+    try {
+      const empty = Array.from({ length: board.rows }, () => Array<boolean>(board.columns).fill(false))
+      const next = await gameApi.replaceBoard(board.id, empty)
+      setBoard(next)
+      await refreshList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to clear board')
+    } finally {
+      setBusy(false)
+    }
+  }, [board, refreshList])
+
+  const deleteBoardHandler = useCallback(async () => {
+    if (!board) return
+    if (!window.confirm(`Delete this board from the server? This cannot be undone.\n\n${board.id}`)) return
+    setError(null)
+    setBusy(true)
+    try {
+      await gameApi.deleteBoard(board.id)
+      setBoard(null)
+      setSelectedId(null)
+      await refreshList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete board')
+    } finally {
+      setBusy(false)
+    }
+  }, [board, refreshList])
+
   const displayCells = useMemo(() => {
     if (createMode) return draftCells
     return board?.cells ?? []
@@ -149,6 +185,24 @@ export default function App() {
       if (createMode) toggleDraft(r, c)
     },
     [createMode, toggleDraft],
+  )
+
+  const uploadPlaygroundToApi = useCallback(
+    async (cells: boolean[][]) => {
+      setError(null)
+      setBusy(true)
+      try {
+        const created = await gameApi.createBoard(cells)
+        await refreshList()
+        await loadBoard(created.id)
+        setShowArcade(false)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Upload failed')
+      } finally {
+        setBusy(false)
+      }
+    },
+    [loadBoard, refreshList],
   )
 
   return (
@@ -204,6 +258,18 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          <div className="sidebar-section">
+            <h3>Keyboard</h3>
+            <button
+              type="button"
+              className={`btn ${showArcade ? 'btn--primary' : ''}`}
+              onClick={() => setShowArcade((v) => !v)}
+              disabled={busy}
+            >
+              {showArcade ? 'Close falling game' : 'Falling patterns (arrows)'}
+            </button>
+          </div>
         </aside>
 
         <main className="main">
@@ -213,7 +279,9 @@ export default function App() {
             </div>
           )}
 
-          {createMode && (
+          {showArcade && <FallingBlocksPlayground busy={busy} onUploadToApi={uploadPlaygroundToApi} />}
+
+          {!showArcade && createMode && (
             <section className="panel">
               <h2>Editor</h2>
               <p className="muted small">Toggle cells, then upload to register with the API.</p>
@@ -251,7 +319,7 @@ export default function App() {
             </section>
           )}
 
-          {!createMode && board && (
+          {!showArcade && !createMode && board && (
             <section className="panel">
               <div className="panel-head">
                 <h2>Board</h2>
@@ -297,6 +365,13 @@ export default function App() {
                 >
                   Run to stable
                 </button>
+                <span className="toolbar-spacer" aria-hidden />
+                <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void clearBoard()}>
+                  Clear board
+                </button>
+                <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void deleteBoardHandler()}>
+                  Delete board
+                </button>
               </div>
               <p className="muted small">
                 &quot;Run to stable&quot; calls <code>/final</code> — still lifes succeed; oscillators usually error
@@ -305,13 +380,13 @@ export default function App() {
             </section>
           )}
 
-          {(createMode || board) && (
+          {!showArcade && (createMode || board) && (
             <div className="grid-wrap">
               <BoardGrid cells={displayCells} editable={displayEditable} onToggleCell={onToggle} cellSize={18} />
             </div>
           )}
 
-          {!createMode && !board && (
+          {!showArcade && !createMode && !board && (
             <p className="muted">Select a board from the list or create a new pattern.</p>
           )}
 

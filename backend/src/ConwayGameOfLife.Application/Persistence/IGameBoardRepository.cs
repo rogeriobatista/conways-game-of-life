@@ -11,4 +11,6 @@ public interface IGameBoardRepository
     Task AddAsync(GameBoardRecord board, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(GameBoardRecord board, CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
 }

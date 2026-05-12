@@ -142,6 +142,11 @@
   width: 5.5rem;
 }
 
+.toolbar-spacer {
+  flex: 1;
+  min-width: 0.5rem;
+}
+
 .form-row {
   display: flex;
   flex-wrap: wrap;
@@ -194,6 +199,11 @@
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
+.board-cell--hot {
+  background: #fde047;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
 .board-cell--dead {
   background: #0f172a;
 }
@@ -234,6 +244,16 @@
   padding: 0.25rem 0.5rem;
 }
 
+.btn--danger {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.28);
+}
+
 .alert {
   padding: 0.65rem 0.85rem;
   border-radius: 8px;
@@ -261,4 +281,34 @@ code {
   background: rgba(0, 0, 0, 0.35);
   padding: 0.1em 0.35em;
   border-radius: 4px;
+}
+
+.arcade.panel {
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.arcade-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.65rem 0 0.75rem;
+}
+
+.arcade-focus {
+  outline: none;
+}
+
+.arcade-focus:focus {
+  box-shadow: 0 0 0 2px var(--accent);
+  border-radius: 12px;
+}
+
+.arcade-grid-wrap {
+  display: inline-block;
+}
+
+.board-cell:not(:disabled).board-cell--hot:hover {
+  filter: brightness(1.05);
 }

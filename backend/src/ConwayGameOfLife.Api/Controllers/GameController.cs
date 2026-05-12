@@ -32,6 +32,30 @@ public sealed class GameController(IGameService gameService, IOptions<GameLimits
         return Created($"/api/game/boards/{result.Id}", result);
     }
 
+    /// <summary>Replaces the entire stored grid (same as uploading a new pattern while keeping the id).</summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(BoardStateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<BoardStateResponse>> ReplaceBoard(
+        Guid id,
+        [FromBody] CreateBoardCommand command,
+        CancellationToken cancellationToken)
+    {
+        var state = await gameService.ReplaceBoardAsync(id, command, cancellationToken).ConfigureAwait(false);
+        return Ok(state);
+    }
+
+    /// <summary>Deletes a board permanently.</summary>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteBoard(Guid id, CancellationToken cancellationToken)
+    {
+        await gameService.DeleteBoardAsync(id, cancellationToken).ConfigureAwait(false);
+        return NoContent();
+    }
+
     /// <summary>Returns the current persisted state without evolving the board.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(BoardStateResponse), StatusCodes.Status200OK)]

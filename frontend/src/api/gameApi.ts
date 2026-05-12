@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiFetch, apiFetchNoContent } from './client'
 import type { BoardCreated, BoardState, BoardSummary } from './types'
 
 export function listBoards(): Promise<BoardSummary[]> {
@@ -14,6 +14,17 @@ export function createBoard(cells: boolean[][]): Promise<BoardCreated> {
     method: 'POST',
     body: JSON.stringify({ cells }),
   })
+}
+
+export function replaceBoard(id: string, cells: boolean[][]): Promise<BoardState> {
+  return apiFetch<BoardState>(`/api/game/boards/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ cells }),
+  })
+}
+
+export function deleteBoard(id: string): Promise<void> {
+  return apiFetchNoContent(`/api/game/boards/${id}`, { method: 'DELETE' })
 }
 
 export function nextGeneration(id: string): Promise<BoardState> {

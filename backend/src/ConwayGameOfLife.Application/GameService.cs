@@ -131,6 +131,36 @@ public sealed class GameService(
         throw new FinalStateNotReachedException(boardId, maxAttempts);
     }
 
+    public async Task DeleteBoardAsync(Guid boardId, CancellationToken cancellationToken = default)
+    {
+        var removed = await repository.DeleteAsync(boardId, cancellationToken).ConfigureAwait(false);
+        if (!removed)
+            throw new BoardNotFoundException(boardId);
+
+        logger.LogInformation("Deleted board {BoardId}.", boardId);
+    }
+
+    public async Task<BoardStateResponse> ReplaceBoardAsync(Guid boardId, CreateBoardCommand command, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
+            ?? throw new BoardNotFoundException(boardId);
+
+        var rows = command.Cells ?? throw new GameValidationException("Cells are required.");
+        var board = Board.FromJagged(rows);
+        EnsureWithinLimits(board);
+
+        record.Board = board;
+        await repository.UpdateAsync(record, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation(
+            "Replaced board {BoardId} with new state {Rows}x{Columns}.",
+            boardId,
+            board.RowCount,
+            board.ColumnCount);
+
+        return ToResponse(record);
+    }
+
     private void EnsureWithinLimits(Board board)
     {
         if (board.RowCount > _limits.MaxRows || board.ColumnCount > _limits.MaxColumns)

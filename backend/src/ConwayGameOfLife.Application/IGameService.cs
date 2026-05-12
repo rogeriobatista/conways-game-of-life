@@ -16,4 +16,8 @@ public interface IGameService
     Task<BoardStateResponse> AdvanceAsync(Guid boardId, int steps, CancellationToken cancellationToken = default);
 
     Task<BoardStateResponse> GetFinalStableStateAsync(Guid boardId, int maxAttempts, CancellationToken cancellationToken = default);
+
+    Task DeleteBoardAsync(Guid boardId, CancellationToken cancellationToken = default);
+
+    Task<BoardStateResponse> ReplaceBoardAsync(Guid boardId, CreateBoardCommand command, CancellationToken cancellationToken = default);
 }

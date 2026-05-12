@@ -217,4 +217,62 @@ public sealed class GameServiceTests
 
         response.Cells.Should().BeEquivalentTo(expectedNext.ToJagged(), options => options.WithStrictOrdering());
     }
+
+    [Fact]
+    public async Task DeleteBoardAsync_CallsRepositoryDelete()
+    {
+        var id = Guid.NewGuid();
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.DeleteAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var sut = CreateSut(repo);
+
+        await sut.DeleteBoardAsync(id);
+
+        repo.Verify(r => r.DeleteAsync(id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteBoardAsync_ThrowsWhenMissing()
+    {
+        var id = Guid.NewGuid();
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.DeleteAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var sut = CreateSut(repo);
+
+        var act = async () => await sut.DeleteBoardAsync(id);
+
+        await act.Should().ThrowAsync<BoardNotFoundException>();
+    }
+
+    [Fact]
+    public async Task ReplaceBoardAsync_UpdatesStoredCells()
+    {
+        var id = Guid.NewGuid();
+        var block = Board.FromJagged(
+            new[]
+            {
+                new[] { true, true },
+                new[] { true, true }
+            });
+
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameBoardRecord { Id = id, Board = block });
+
+        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = CreateSut(repo);
+        var empty = new[] { new[] { false, false }, new[] { false, false } };
+        var cmd = new CreateBoardCommand { Cells = empty };
+
+        var response = await sut.ReplaceBoardAsync(id, cmd);
+
+        response.Cells.Should().BeEquivalentTo(empty, options => options.WithStrictOrdering());
+        repo.Verify(
+            r => r.UpdateAsync(
+                It.Is<GameBoardRecord>(g => g.Id == id && g.Board.RowCount == 2 && !g.Board[0, 0]),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
 }
