@@ -36,6 +36,16 @@ export function canPlace(
   return true
 }
 
+/** Lowest row index where `piece` can rest without overlapping landed cells. */
+export function computeHardDropRow(
+  landed: boolean[][],
+  piece: { cells: boolean[][]; row: number; col: number },
+): number {
+  let row = piece.row
+  while (canPlace(landed, piece.cells, row + 1, piece.col)) row += 1
+  return row
+}
+
 export function mergePiece(
   landed: boolean[][],
   shape: boolean[][],
@@ -49,6 +59,22 @@ export function mergePiece(
     }
   }
   return next
+}
+
+/** Count live (true) cells in a shape matrix. */
+export function countLiveCells(shape: boolean[][]): number {
+  let n = 0
+  for (const row of shape) {
+    for (const cell of row) {
+      if (cell) n++
+    }
+  }
+  return n
+}
+
+/** How many fully-filled rows would be removed (before padding). */
+export function countFullRows(landed: boolean[][]): number {
+  return landed.filter((row) => row.every((cell) => cell)).length
 }
 
 /** Remove every fully-live horizontal row; pad empty rows at the top so height is unchanged (Tetris-style). */

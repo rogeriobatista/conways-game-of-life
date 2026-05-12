@@ -18,6 +18,7 @@ public static class DependencyInjection
             options.UseSqlite(connectionString));
 
         services.AddScoped<IGameBoardRepository, GameBoardRepository>();
+        services.AddScoped<IMeteorScoreRepository, MeteorScoreRepository>();
 
         return services;
     }

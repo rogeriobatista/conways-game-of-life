@@ -2,4 +2,5 @@
 export const queryKeys = {
   boards: ['game', 'boards'] as const,
   board: (id: string) => ['game', 'board', id] as const,
+  meteorScores: (top: number) => ['game', 'meteor-scores', top] as const,
 }

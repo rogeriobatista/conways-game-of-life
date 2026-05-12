@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.Configure<GameLimitsOptions>(configuration.GetSection(GameLimitsOptions.SectionName));
         services.AddScoped<IGameEngine, GameEngine>();
         services.AddScoped<IGameService, GameService>();
+        services.AddScoped<IMeteorScoreService, MeteorScoreService>();
         services.AddValidatorsFromAssemblyContaining<CreateBoardCommandValidator>();
 
         return services;
