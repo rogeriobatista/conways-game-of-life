@@ -1,10 +1,8 @@
 import { BoardGrid } from '../../components/BoardGrid'
+import { useAppShellContext } from '../../app/AppShellContext'
 
-export type LifeBoardStageProps = {
-  displayCells: boolean[][]
-}
-
-export function LifeBoardStage({ displayCells }: LifeBoardStageProps) {
+export function LifeBoardStage() {
+  const { displayCells } = useAppShellContext()
   return (
     <div className="stage__arena">
       <div className="grid-shell">

@@ -1,30 +1,20 @@
 import { BoardGrid } from '../../components/BoardGrid'
+import { useAppShellContext } from '../../app/AppShellContext'
 
-export type ForgeWorkspaceProps = {
-  busy: boolean
-  draftRows: number
-  draftCols: number
-  displayCells: boolean[][]
-  onDraftRowsChange: (rows: number) => void
-  onDraftColsChange: (cols: number) => void
-  onApplyDraftSize: () => void
-  onCancel: () => void
-  onAnchor: () => void
-  onToggleCell: (row: number, col: number) => void
-}
+export function ForgeWorkspace() {
+  const {
+    busy,
+    draftRows,
+    draftCols,
+    displayCells,
+    setDraftRows,
+    setDraftCols,
+    applyDraftSize,
+    setCreateMode,
+    anchorDraft,
+    toggleDraft,
+  } = useAppShellContext()
 
-export function ForgeWorkspace({
-  busy,
-  draftRows,
-  draftCols,
-  displayCells,
-  onDraftRowsChange,
-  onDraftColsChange,
-  onApplyDraftSize,
-  onCancel,
-  onAnchor,
-  onToggleCell,
-}: ForgeWorkspaceProps) {
   return (
     <div className="stage__arena">
       <div className="stage__forge-banner">
@@ -36,24 +26,24 @@ export function ForgeWorkspace({
       <div className="forge-tools">
         <label>
           Height
-          <input type="number" min={1} max={200} value={draftRows} onChange={(e) => onDraftRowsChange(Number(e.target.value))} />
+          <input type="number" min={1} max={200} value={draftRows} onChange={(e) => setDraftRows(Number(e.target.value))} />
         </label>
         <label>
           Width
-          <input type="number" min={1} max={200} value={draftCols} onChange={(e) => onDraftColsChange(Number(e.target.value))} />
+          <input type="number" min={1} max={200} value={draftCols} onChange={(e) => setDraftCols(Number(e.target.value))} />
         </label>
-        <button type="button" className="btn" onClick={onApplyDraftSize}>
+        <button type="button" className="btn" onClick={applyDraftSize}>
           Resize
         </button>
-        <button type="button" className="btn btn--ghost" onClick={onCancel}>
+        <button type="button" className="btn btn--ghost" onClick={() => setCreateMode(false)}>
           Cancel
         </button>
-        <button type="button" className="btn btn--primary" onClick={() => void onAnchor()} disabled={busy}>
+        <button type="button" className="btn btn--primary" onClick={() => void anchorDraft()} disabled={busy}>
           Anchor world
         </button>
       </div>
       <div className="grid-shell">
-        <BoardGrid cells={displayCells} editable onToggleCell={onToggleCell} cellSize={18} />
+        <BoardGrid cells={displayCells} editable onToggleCell={toggleDraft} cellSize={18} />
       </div>
     </div>
   )

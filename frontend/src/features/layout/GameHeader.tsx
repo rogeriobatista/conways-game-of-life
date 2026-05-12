@@ -1,25 +1,16 @@
-import type { BoardState } from '../../api/types'
-import type { ArcadeRoute } from '../../app/types'
+import { useAppShellContext } from '../../app/AppShellContext'
 
-export type GameHeaderProps = {
-  arcadeRoute: ArcadeRoute
-  board: BoardState | null
-  createMode: boolean
-  lifeTicks: number
-  drawerOpen: boolean
-  onToggleDrawer: () => void
-  onArcadeHome: () => void
-}
+export function GameHeader() {
+  const {
+    arcadeRoute,
+    board,
+    createMode,
+    lifeTicks,
+    drawerOpen,
+    setDrawerOpen,
+    setArcadeRoute,
+  } = useAppShellContext()
 
-export function GameHeader({
-  arcadeRoute,
-  board,
-  createMode,
-  lifeTicks,
-  drawerOpen,
-  onToggleDrawer,
-  onArcadeHome,
-}: GameHeaderProps) {
   const showArcadeBack = !board && !createMode && arcadeRoute.kind !== 'hub'
 
   return (
@@ -54,14 +45,14 @@ export function GameHeader({
 
       <div className="game__top-actions">
         {showArcadeBack ? (
-          <button type="button" className="btn btn--ghost btn--sm" onClick={onArcadeHome}>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setArcadeRoute({ kind: 'hub' })}>
             ← Arcade home
           </button>
         ) : null}
         <button
           type="button"
           className={`btn btn--icon ${drawerOpen ? 'btn--primary' : ''}`}
-          onClick={onToggleDrawer}
+          onClick={() => setDrawerOpen((o) => !o)}
           aria-expanded={drawerOpen}
           aria-label={drawerOpen ? 'Close archives' : 'Open archives'}
           title="Worlds"

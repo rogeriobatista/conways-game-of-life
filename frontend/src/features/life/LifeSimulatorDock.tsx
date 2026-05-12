@@ -1,72 +1,63 @@
-import type { BoardState } from '../../api/types'
+import { useAppShellContext } from '../../app/AppShellContext'
 
-export type LifeSimulatorDockProps = {
-  board: BoardState | null
-  busy: boolean
-  advanceSteps: number
-  finalAttempts: number
-  onAdvanceStepsChange: (n: number) => void
-  onFinalAttemptsChange: (n: number) => void
-  onStep: () => void
-  onSprint: () => void
-  onStillness: () => void
-  onClearBoard: () => void
-  onDestroyBoard: () => void
-  onAnchorDraft: () => void
-}
+export function LifeSimulatorDock() {
+  const {
+    arcadePlayOpen,
+    board,
+    busy,
+    advanceSteps,
+    finalAttempts,
+    setAdvanceSteps,
+    setFinalAttempts,
+    handleStep,
+    handleSprint,
+    handleStillness,
+    clearBoard,
+    deleteBoardHandler,
+    anchorDraft,
+    createMode,
+  } = useAppShellContext()
 
-export function LifeSimulatorDock({
-  board,
-  busy,
-  advanceSteps,
-  finalAttempts,
-  onAdvanceStepsChange,
-  onFinalAttemptsChange,
-  onStep,
-  onSprint,
-  onStillness,
-  onClearBoard,
-  onDestroyBoard,
-  onAnchorDraft,
-}: LifeSimulatorDockProps) {
+  if (arcadePlayOpen || (!board && !createMode)) return null
+
   return (
     <footer className="dock">
       {board ? (
         <>
           <div className="dock__group">
-            <button type="button" className="btn btn--primary" disabled={busy} onClick={onStep}>
+            <button type="button" className="btn btn--primary" disabled={busy} onClick={handleStep}>
               Step
             </button>
             <div className="dock__sep" />
             <label>
               Burst
-              <input type="number" min={1} max={10000} value={advanceSteps} onChange={(e) => onAdvanceStepsChange(Number(e.target.value))} />
+              <input type="number" min={1} max={10000} value={advanceSteps} onChange={(e) => setAdvanceSteps(Number(e.target.value))} />
             </label>
-            <button type="button" className="btn" disabled={busy} onClick={onSprint}>
+            <button type="button" className="btn" disabled={busy} onClick={handleSprint}>
               Sprint
             </button>
             <div className="dock__sep" />
             <label>
               Patience
-              <input type="number" min={1} max={100000} value={finalAttempts} onChange={(e) => onFinalAttemptsChange(Number(e.target.value))} />
+              <input type="number" min={1} max={100000} value={finalAttempts} onChange={(e) => setFinalAttempts(Number(e.target.value))} />
             </label>
-            <button type="button" className="btn" disabled={busy} onClick={onStillness}>
+            <button type="button" className="btn" disabled={busy} onClick={handleStillness}>
               Seek stillness
             </button>
           </div>
           <div className="dock__sep" />
           <div className="dock__group">
-            <button type="button" className="btn btn--ghost" disabled={busy} onClick={onClearBoard}>
+            <button type="button" className="btn btn--ghost" disabled={busy} onClick={clearBoard}>
               Erase canvas
             </button>
-            <button type="button" className="btn btn--danger" disabled={busy} onClick={onDestroyBoard}>
+            <button type="button" className="btn btn--danger" disabled={busy} onClick={deleteBoardHandler}>
               Destroy realm
             </button>
           </div>
         </>
       ) : (
         <div className="dock__group">
-          <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void onAnchorDraft()}>
+          <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void anchorDraft()}>
             Anchor world
           </button>
         </div>
