@@ -28,7 +28,17 @@ const PRESETS = {
   ],
 } as const
 
+function formatWhen(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
 export default function App() {
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [summaries, setSummaries] = useState<BoardSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [board, setBoard] = useState<BoardState | null>(null)
@@ -41,13 +51,18 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showArcade, setShowArcade] = useState(false)
+  const [lifeTicks, setLifeTicks] = useState(0)
+
+  useEffect(() => {
+    setLifeTicks(0)
+  }, [board?.id])
 
   const refreshList = useCallback(async () => {
     setError(null)
     try {
       setSummaries(await gameApi.listBoards())
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to list boards')
+      setError(e instanceof Error ? e.message : 'Could not reach the archives.')
     }
   }, [])
 
@@ -64,8 +79,9 @@ export default function App() {
         setBoard(state)
         setSelectedId(id)
         setCreateMode(false)
+        setDrawerOpen(false)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load board')
+        setError(e instanceof Error ? e.message : 'That realm could not be opened.')
       } finally {
         setBusy(false)
       }
@@ -97,6 +113,7 @@ export default function App() {
     setCreateMode(true)
     setBoard(null)
     setSelectedId(null)
+    setDrawerOpen(true)
   }, [])
 
   const toggleDraft = useCallback((row: number, col: number) => {
@@ -107,7 +124,7 @@ export default function App() {
     })
   }, [])
 
-  const uploadDraft = useCallback(async () => {
+  const anchorDraft = useCallback(async () => {
     setError(null)
     setBusy(true)
     try {
@@ -115,42 +132,74 @@ export default function App() {
       await refreshList()
       await loadBoard(created.id)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
+      setError(e instanceof Error ? e.message : 'The pattern refused to bind.')
     } finally {
       setBusy(false)
     }
   }, [draftCells, loadBoard, refreshList])
 
-  const run = useCallback(
-    async (fn: () => Promise<BoardState>) => {
-      if (!selectedId) return
-      setError(null)
-      setBusy(true)
-      try {
-        const next = await fn()
-        setBoard(next)
-        await refreshList()
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Request failed')
-      } finally {
-        setBusy(false)
-      }
-    },
-    [selectedId, refreshList],
-  )
+  const handleStep = useCallback(async () => {
+    if (!board) return
+    setError(null)
+    setBusy(true)
+    try {
+      const next = await gameApi.nextGeneration(board.id)
+      setBoard(next)
+      setLifeTicks((t) => t + 1)
+      await refreshList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Time stuttered.')
+    } finally {
+      setBusy(false)
+    }
+  }, [board, refreshList])
+
+  const handleSprint = useCallback(async () => {
+    if (!board) return
+    setError(null)
+    setBusy(true)
+    try {
+      const steps = Math.max(1, advanceSteps)
+      const next = await gameApi.advance(board.id, steps)
+      setBoard(next)
+      setLifeTicks((t) => t + steps)
+      await refreshList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Time stuttered.')
+    } finally {
+      setBusy(false)
+    }
+  }, [board, advanceSteps, refreshList])
+
+  const handleStillness = useCallback(async () => {
+    if (!board) return
+    setError(null)
+    setBusy(true)
+    try {
+      const next = await gameApi.finalState(board.id, finalAttempts)
+      setBoard(next)
+      setLifeTicks((t) => t + 1)
+      await refreshList()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'The pattern never slept.')
+    } finally {
+      setBusy(false)
+    }
+  }, [board, finalAttempts, refreshList])
 
   const clearBoard = useCallback(async () => {
     if (!board) return
-    if (!window.confirm('Clear every cell on this board? The board id stays the same.')) return
+    if (!window.confirm('Erase every living cell in this realm? The save remains—only the canvas is wiped.')) return
     setError(null)
     setBusy(true)
     try {
       const empty = Array.from({ length: board.rows }, () => Array<boolean>(board.columns).fill(false))
       const next = await gameApi.replaceBoard(board.id, empty)
       setBoard(next)
+      setLifeTicks(0)
       await refreshList()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to clear board')
+      setError(e instanceof Error ? e.message : 'The void would not clear.')
     } finally {
       setBusy(false)
     }
@@ -158,7 +207,7 @@ export default function App() {
 
   const deleteBoardHandler = useCallback(async () => {
     if (!board) return
-    if (!window.confirm(`Delete this board from the server? This cannot be undone.\n\n${board.id}`)) return
+    if (!window.confirm('Destroy this realm and all memory of it? This cannot be undone.')) return
     setError(null)
     setBusy(true)
     try {
@@ -167,7 +216,7 @@ export default function App() {
       setSelectedId(null)
       await refreshList()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete board')
+      setError(e instanceof Error ? e.message : 'The realm clung on.')
     } finally {
       setBusy(false)
     }
@@ -177,15 +226,6 @@ export default function App() {
     if (createMode) return draftCells
     return board?.cells ?? []
   }, [createMode, draftCells, board])
-
-  const displayEditable = createMode
-
-  const onToggle = useCallback(
-    (r: number, c: number) => {
-      if (createMode) toggleDraft(r, c)
-    },
-    [createMode, toggleDraft],
-  )
 
   const uploadPlaygroundToApi = useCallback(
     async (cells: boolean[][]) => {
@@ -197,7 +237,7 @@ export default function App() {
         await loadBoard(created.id)
         setShowArcade(false)
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Upload failed')
+        setError(e instanceof Error ? e.message : 'Could not anchor the storm.')
       } finally {
         setBusy(false)
       }
@@ -205,194 +245,260 @@ export default function App() {
     [loadBoard, refreshList],
   )
 
+  const openForge = () => {
+    setCreateMode(true)
+    setBoard(null)
+    setSelectedId(null)
+    setDrawerOpen(true)
+  }
+
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>Conway&apos;s Game of Life</h1>
-        <p className="app-sub">
-          Visual client for the monorepo API — evolve patterns stored on the server.
-        </p>
+    <div className="game">
+      <header className="game__top">
+        <div className="game__brand">
+          <h1 className="game__title">Life</h1>
+          <p className="game__tagline">Worlds in motion</p>
+        </div>
+
+        <div className="game__hud">
+          {showArcade ? (
+            <span className="hud-pill hud-pill--live">Meteor shower</span>
+          ) : board ? (
+            <>
+              <span className="hud-pill">
+                Grid <strong>{board.rows}×{board.columns}</strong>
+              </span>
+              <span className="hud-pill hud-pill--live">
+                Ticks <strong>{lifeTicks}</strong>
+              </span>
+            </>
+          ) : createMode ? (
+            <span className="hud-pill hud-pill--live">Forging</span>
+          ) : (
+            <span className="hud-pill">No realm open</span>
+          )}
+        </div>
+
+        <div className="game__top-actions">
+          {showArcade ? (
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => setShowArcade(false)}>
+              ← Realms
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`btn btn--icon ${drawerOpen ? 'btn--primary' : ''}`}
+            onClick={() => setDrawerOpen((o) => !o)}
+            aria-expanded={drawerOpen}
+            aria-label={drawerOpen ? 'Close archives' : 'Open archives'}
+            title="Worlds"
+          >
+            ◇
+          </button>
+        </div>
       </header>
 
-      <div className="app-layout">
-        <aside className="sidebar">
-          <div className="sidebar-head">
-            <h2>Boards</h2>
-            <button type="button" className="btn btn--ghost" onClick={() => void refreshList()} disabled={busy}>
-              Refresh
-            </button>
-          </div>
-          <ul className="board-list">
-            {summaries.map((s) => (
-              <li key={s.id}>
+      {drawerOpen && (
+        <>
+          <div className="drawer-scrim" role="presentation" onClick={() => setDrawerOpen(false)} />
+          <aside className="drawer" aria-label="World archives">
+            <div className="drawer__head">
+              <h2>Realms</h2>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setDrawerOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="drawer__body">
+              <button type="button" className="btn btn--ghost" style={{ width: '100%' }} onClick={() => void refreshList()} disabled={busy}>
+                Refresh archives
+              </button>
+
+              <div className="drawer__section">
+                <h3>Saved worlds</h3>
+                {summaries.length === 0 ? (
+                  <p className="drawer__empty">None yet—forge one below.</p>
+                ) : (
+                  <ul className="world-list">
+                    {summaries.map((s, i) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          className={selectedId === s.id ? 'is-active' : ''}
+                          onClick={() => void loadBoard(s.id)}
+                          disabled={busy}
+                        >
+                          <span className="world-list__name">Realm {i + 1}</span>
+                          <span className="world-list__meta">
+                            {s.rows}×{s.columns} · {formatWhen(s.updatedAtUtc)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="drawer__section">
+                <h3>Quick shapes</h3>
+                <div className="preset-grid">
+                  <button type="button" className="btn btn--sm" onClick={() => setPreset('block')} disabled={busy}>
+                    Cube
+                  </button>
+                  <button type="button" className="btn btn--sm" onClick={() => setPreset('blinker')} disabled={busy}>
+                    Pulse
+                  </button>
+                  <button type="button" className="btn btn--sm" onClick={() => setPreset('glider')} disabled={busy}>
+                    Glide
+                  </button>
+                </div>
+                <button type="button" className="btn btn--primary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={openForge} disabled={busy}>
+                  Custom forge
+                </button>
+              </div>
+
+              <div className="drawer__section">
+                <h3>Side mode</h3>
                 <button
                   type="button"
-                  className={`board-list__item ${selectedId === s.id ? 'board-list__item--active' : ''}`}
-                  onClick={() => void loadBoard(s.id)}
+                  className={`btn ${showArcade ? 'btn--primary' : ''}`}
+                  style={{ width: '100%' }}
+                  onClick={() => {
+                    setShowArcade(true)
+                    setDrawerOpen(false)
+                  }}
                   disabled={busy}
                 >
-                  <span className="mono">{s.id.slice(0, 8)}…</span>
-                  <span className="muted">
-                    {s.rows}×{s.columns}
-                  </span>
+                  Meteor shower
                 </button>
-              </li>
-            ))}
-          </ul>
-          {summaries.length === 0 && <p className="muted small">No boards yet. Create one below.</p>}
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
 
-          <div className="sidebar-section">
-            <h3>New board</h3>
-            <button type="button" className="btn" onClick={() => setCreateMode(true)} disabled={busy}>
-              Draw custom…
-            </button>
-            <div className="preset-row">
-              <button type="button" className="btn btn--small" onClick={() => setPreset('block')} disabled={busy}>
-                Block
+      <main className="stage">
+        {error ? (
+          <div className="stage__alert" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        {showArcade ? (
+          <div className="stage__arena">
+            <FallingBlocksPlayground busy={busy} onUploadToApi={uploadPlaygroundToApi} />
+          </div>
+        ) : createMode ? (
+          <div className="stage__arena">
+            <div className="stage__forge-banner">
+              <h2>Forge</h2>
+              <p className="cascade__hint" style={{ margin: 0 }}>
+                Tap cells to wake or silence them, then anchor your design.
+              </p>
+            </div>
+            <div className="forge-tools">
+              <label>
+                Height
+                <input type="number" min={1} max={200} value={draftRows} onChange={(e) => setDraftRows(Number(e.target.value))} />
+              </label>
+              <label>
+                Width
+                <input type="number" min={1} max={200} value={draftCols} onChange={(e) => setDraftCols(Number(e.target.value))} />
+              </label>
+              <button type="button" className="btn" onClick={applyDraftSize}>
+                Resize
               </button>
-              <button type="button" className="btn btn--small" onClick={() => setPreset('blinker')} disabled={busy}>
-                Blinker
+              <button type="button" className="btn btn--ghost" onClick={() => setCreateMode(false)}>
+                Cancel
               </button>
-              <button type="button" className="btn btn--small" onClick={() => setPreset('glider')} disabled={busy}>
-                Glider
+              <button type="button" className="btn btn--primary" onClick={() => void anchorDraft()} disabled={busy}>
+                Anchor world
+              </button>
+            </div>
+            <div className="grid-shell">
+              <BoardGrid cells={displayCells} editable onToggleCell={toggleDraft} cellSize={18} />
+            </div>
+          </div>
+        ) : board ? (
+          <div className="stage__arena">
+            <div className="grid-shell">
+              <BoardGrid cells={displayCells} cellSize={18} />
+            </div>
+          </div>
+        ) : (
+          <div className="stage__void">
+            <h2>The silence is wide</h2>
+            <p>Open the archives and choose a saved realm, forge a fresh canvas, or chase the meteor shower.</p>
+            <div className="stage__void-actions">
+              <button type="button" className="btn btn--primary" onClick={() => setDrawerOpen(true)}>
+                Open archives
+              </button>
+              <button type="button" className="btn" onClick={openForge}>
+                Begin forging
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  setShowArcade(true)
+                }}
+              >
+                Meteor shower
               </button>
             </div>
           </div>
+        )}
+      </main>
 
-          <div className="sidebar-section">
-            <h3>Keyboard</h3>
-            <button
-              type="button"
-              className={`btn ${showArcade ? 'btn--primary' : ''}`}
-              onClick={() => setShowArcade((v) => !v)}
-              disabled={busy}
-            >
-              {showArcade ? 'Close falling game' : 'Falling patterns (arrows)'}
-            </button>
-          </div>
-        </aside>
-
-        <main className="main">
-          {error && (
-            <div className="alert" role="alert">
-              {error}
-            </div>
-          )}
-
-          {showArcade && <FallingBlocksPlayground busy={busy} onUploadToApi={uploadPlaygroundToApi} />}
-
-          {!showArcade && createMode && (
-            <section className="panel">
-              <h2>Editor</h2>
-              <p className="muted small">Toggle cells, then upload to register with the API.</p>
-              <div className="form-row">
-                <label>
-                  Rows
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    value={draftRows}
-                    onChange={(e) => setDraftRows(Number(e.target.value))}
-                  />
-                </label>
-                <label>
-                  Cols
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    value={draftCols}
-                    onChange={(e) => setDraftCols(Number(e.target.value))}
-                  />
-                </label>
-                <button type="button" className="btn" onClick={applyDraftSize}>
-                  Apply size
+      {!showArcade && (board || createMode) ? (
+        <footer className="dock">
+          {board ? (
+            <>
+              <div className="dock__group">
+                <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void handleStep()}>
+                  Step
                 </button>
-                <button type="button" className="btn btn--primary" onClick={() => void uploadDraft()} disabled={busy}>
-                  Upload board
+                <div className="dock__sep" />
+                <label>
+                  Burst
+                  <input type="number" min={1} max={10000} value={advanceSteps} onChange={(e) => setAdvanceSteps(Number(e.target.value))} />
+                </label>
+                <button type="button" className="btn" disabled={busy} onClick={() => void handleSprint()}>
+                  Sprint
                 </button>
-                <button type="button" className="btn btn--ghost" onClick={() => setCreateMode(false)}>
-                  Cancel
+                <div className="dock__sep" />
+                <label>
+                  Patience
+                  <input type="number" min={1} max={100000} value={finalAttempts} onChange={(e) => setFinalAttempts(Number(e.target.value))} />
+                </label>
+                <button type="button" className="btn" disabled={busy} onClick={() => void handleStillness()}>
+                  Seek stillness
                 </button>
               </div>
-            </section>
-          )}
-
-          {!showArcade && !createMode && board && (
-            <section className="panel">
-              <div className="panel-head">
-                <h2>Board</h2>
-                <span className="mono muted small">{board.id}</span>
-              </div>
-              <div className="toolbar">
-                <button type="button" className="btn btn--primary" disabled={busy} onClick={() => run(() => gameApi.nextGeneration(board.id))}>
-                  Next generation
-                </button>
-                <label className="toolbar-inline">
-                  Steps
-                  <input
-                    type="number"
-                    min={1}
-                    max={10000}
-                    value={advanceSteps}
-                    onChange={(e) => setAdvanceSteps(Number(e.target.value))}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => run(() => gameApi.advance(board.id, advanceSteps))}
-                >
-                  Advance
-                </button>
-                <label className="toolbar-inline">
-                  Max attempts
-                  <input
-                    type="number"
-                    min={1}
-                    max={100000}
-                    value={finalAttempts}
-                    onChange={(e) => setFinalAttempts(Number(e.target.value))}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => run(() => gameApi.finalState(board.id, finalAttempts))}
-                >
-                  Run to stable
-                </button>
-                <span className="toolbar-spacer" aria-hidden />
+              <div className="dock__sep" />
+              <div className="dock__group">
                 <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void clearBoard()}>
-                  Clear board
+                  Erase canvas
                 </button>
                 <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void deleteBoardHandler()}>
-                  Delete board
+                  Destroy realm
                 </button>
               </div>
-              <p className="muted small">
-                &quot;Run to stable&quot; calls <code>/final</code> — still lifes succeed; oscillators usually error
-                unless the limit is huge.
-              </p>
-            </section>
-          )}
-
-          {!showArcade && (createMode || board) && (
-            <div className="grid-wrap">
-              <BoardGrid cells={displayCells} editable={displayEditable} onToggleCell={onToggle} cellSize={18} />
+            </>
+          ) : (
+            <div className="dock__group">
+              <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void anchorDraft()}>
+                Anchor world
+              </button>
             </div>
           )}
+        </footer>
+      ) : null}
 
-          {!showArcade && !createMode && !board && (
-            <p className="muted">Select a board from the list or create a new pattern.</p>
-          )}
-
-          {busy && <p className="muted small">Working…</p>}
-        </main>
-      </div>
+      {busy ? (
+        <div className="busy-curtain" aria-busy="true">
+          <div className="busy-curtain__inner">Channeling…</div>
+        </div>
+      ) : null}
     </div>
   )
 }

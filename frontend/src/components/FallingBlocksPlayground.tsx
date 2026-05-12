@@ -162,48 +162,45 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
   }, [game, onUploadToApi])
 
   return (
-    <section className="arcade panel">
-      <div className="panel-head">
-        <h2>Falling patterns</h2>
-        {playing && (
-          <span className="muted small">
-            Locked: <strong>{game.locks}</strong>
+    <section className="cascade">
+      <div className="cascade__head">
+        <h2>Meteor shower</h2>
+        {playing ? (
+          <span className="cascade__score">
+            Anchors <strong>{game.locks}</strong>
           </span>
-        )}
+        ) : null}
       </div>
-      <p className="muted small">
-        <strong>Arrow keys:</strong> move sideways, <strong>Down</strong> soft drop, <strong>Up</strong> rotate. When a
-        piece can&apos;t move down it merges and a <strong>new random pattern</strong> spawns at the top. Every{' '}
-        <strong>fully filled horizontal row</strong> is cleared (blocks above shift down). Click the board area so
-        keys aren&apos;t captured by the page.
+      <p className="cascade__hint">
+        Arrows: move, soft drop, spin. Full rows shatter. Click the well first so the keys stay here.
       </p>
-      <div className="arcade-toolbar">
+      <div className="cascade__actions">
         {!playing ? (
           <button type="button" className="btn btn--primary" onClick={start} disabled={busy}>
-            Start
+            Enter storm
           </button>
         ) : (
           <>
             <button type="button" className="btn btn--ghost" onClick={stop} disabled={busy}>
-              Stop
+              Leave well
             </button>
             <button type="button" className="btn btn--ghost" onClick={() => dispatch({ type: 'reset' })} disabled={busy}>
-              Reset playground
+              Clear sky
             </button>
             <button type="button" className="btn" onClick={() => void upload()} disabled={busy}>
-              Upload merged grid to API
+              Save as realm
             </button>
           </>
         )}
       </div>
       <div
         ref={wrapRef}
-        className="arcade-focus"
+        className="cascade-focus"
         tabIndex={0}
         role="application"
-        aria-label="Falling Conway patterns playground"
+        aria-label="Meteor shower"
       >
-        <div className="grid-wrap arcade-grid-wrap">
+        <div className="grid-shell">
           <BoardGrid cells={cells} hotMask={hot} cellSize={16} />
         </div>
       </div>
