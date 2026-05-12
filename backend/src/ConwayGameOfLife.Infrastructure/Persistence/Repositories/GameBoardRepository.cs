@@ -1,6 +1,8 @@
 using System.Text.Json;
 using ConwayGameOfLife.Application.Exceptions;
-using ConwayGameOfLife.Application.Persistence;
+using ConwayGameOfLife.Application.Persistence.Models;
+using ConwayGameOfLife.Application.Persistence.Records;
+using ConwayGameOfLife.Application.Persistence.Repositories;
 using ConwayGameOfLife.Domain.Entities;
 using ConwayGameOfLife.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;

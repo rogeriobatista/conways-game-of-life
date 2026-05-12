@@ -6,8 +6,6 @@ using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
-// Bootstrap logger active until the full Serilog pipeline is built from configuration.
-// This captures any startup failures before the host is running.
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();

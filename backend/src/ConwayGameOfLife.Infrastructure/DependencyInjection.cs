@@ -1,4 +1,4 @@
-using ConwayGameOfLife.Application.Persistence;
+using ConwayGameOfLife.Application.Persistence.Repositories;
 using ConwayGameOfLife.Infrastructure.Persistence;
 using ConwayGameOfLife.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;

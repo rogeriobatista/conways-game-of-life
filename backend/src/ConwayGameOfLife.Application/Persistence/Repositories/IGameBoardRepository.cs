@@ -1,4 +1,7 @@
-namespace ConwayGameOfLife.Application.Persistence;
+using ConwayGameOfLife.Application.Persistence.Models;
+using ConwayGameOfLife.Application.Persistence.Records;
+
+namespace ConwayGameOfLife.Application.Persistence.Repositories;
 
 public interface IGameBoardRepository
 {

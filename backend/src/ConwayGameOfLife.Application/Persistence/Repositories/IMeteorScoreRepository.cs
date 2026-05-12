@@ -1,4 +1,6 @@
-namespace ConwayGameOfLife.Application.Persistence;
+using ConwayGameOfLife.Application.Persistence.Models;
+
+namespace ConwayGameOfLife.Application.Persistence.Repositories;
 
 public interface IMeteorScoreRepository
 {

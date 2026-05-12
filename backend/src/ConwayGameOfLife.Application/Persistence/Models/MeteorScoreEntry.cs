@@ -1,4 +1,4 @@
-namespace ConwayGameOfLife.Application.Persistence;
+namespace ConwayGameOfLife.Application.Persistence.Models;
 
 /// <summary>
 /// Meteor score row as read from persistence (not an HTTP contract type).

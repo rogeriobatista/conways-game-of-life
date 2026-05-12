@@ -1,6 +1,6 @@
 using ConwayGameOfLife.Domain.Entities;
 
-namespace ConwayGameOfLife.Application.Persistence;
+namespace ConwayGameOfLife.Application.Persistence.Records;
 
 public sealed class GameBoardRecord
 {

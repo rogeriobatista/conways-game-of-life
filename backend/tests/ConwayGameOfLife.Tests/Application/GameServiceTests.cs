@@ -1,7 +1,9 @@
 using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
-using ConwayGameOfLife.Application.Persistence;
+using ConwayGameOfLife.Application.Persistence.Models;
+using ConwayGameOfLife.Application.Persistence.Records;
+using ConwayGameOfLife.Application.Persistence.Repositories;
 using ConwayGameOfLife.Application.Responses;
 using ConwayGameOfLife.Application.Services;
 using ConwayGameOfLife.Domain.Entities;
