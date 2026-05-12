@@ -13,7 +13,7 @@ public sealed class MeteorScoreServiceTests
     [Fact]
     public async Task RecordScoreAsync_PersistsViaRepository()
     {
-        var created = new MeteorScoreResponse(Guid.NewGuid(), 425, 7, 40, DateTime.UtcNow);
+        var created = new MeteorScoreEntry(Guid.NewGuid(), 425, 7, 40, DateTime.UtcNow);
         var repo = new Mock<IMeteorScoreRepository>();
         repo.Setup(r => r.AddAsync(425, 7, 40, It.IsAny<CancellationToken>()))
             .ReturnsAsync(created);
@@ -22,14 +22,14 @@ public sealed class MeteorScoreServiceTests
 
         var result = await sut.RecordScoreAsync(new CreateMeteorScoreCommand(425, 7, 40));
 
-        result.Should().Be(created);
+        result.Should().BeEquivalentTo(new MeteorScoreResponse(created.Id, 425, 7, 40, created.CreatedAtUtc));
         repo.Verify(r => r.AddAsync(425, 7, 40, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task ListTopScoresAsync_DelegatesToRepository()
     {
-        var list = new List<MeteorScoreResponse>
+        var list = new List<MeteorScoreEntry>
         {
             new(Guid.NewGuid(), 900, 3, 20, DateTime.UtcNow),
         };
@@ -41,6 +41,8 @@ public sealed class MeteorScoreServiceTests
 
         var result = await sut.ListTopScoresAsync(10);
 
-        result.Should().BeEquivalentTo(list);
+        result.Should().BeEquivalentTo(
+            new[] { new MeteorScoreResponse(list[0].Id, 900, 3, 20, list[0].CreatedAtUtc) },
+            o => o.WithStrictOrdering());
     }
 }

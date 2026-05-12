@@ -99,7 +99,7 @@ public sealed class GameController(IGameService gameService, IOptions<GameLimits
         [FromQuery] int? maxAttempts,
         CancellationToken cancellationToken)
     {
-        var resolved = maxAttempts ?? limitsOptions.Value.DefaultFinalStateMaxAttempts;
+        var resolved = limitsOptions.Value.ResolveFinalStateMaxAttempts(maxAttempts);
         var state = await gameService.GetFinalStableStateAsync(id, resolved, cancellationToken).ConfigureAwait(false);
         return Ok(state);
     }

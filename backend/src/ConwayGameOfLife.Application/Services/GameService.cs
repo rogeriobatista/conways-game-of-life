@@ -3,6 +3,7 @@ using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
+using ConwayGameOfLife.Application.Validation;
 using ConwayGameOfLife.Domain.Entities;
 using ConwayGameOfLife.Domain.Simulation;
 using Microsoft.Extensions.Logging;
@@ -29,7 +30,7 @@ public sealed class GameService(
     {
         var list = await repository.ListSummariesAsync(cancellationToken).ConfigureAwait(false);
         logger.LogDebug("Listed {Count} board(s).", list.Count);
-        return list;
+        return list.Select(static e => new BoardSummaryResponse(e.Id, e.Rows, e.Columns, e.UpdatedAtUtc)).ToList();
     }
 
     public async Task<BoardCreatedResponse> CreateBoardAsync(CreateBoardCommand command, CancellationToken cancellationToken = default)
@@ -147,15 +148,8 @@ public sealed class GameService(
         ArgumentNullException.ThrowIfNull(command);
         var rows = command.Cells ?? throw new GameValidationException("Cells are required.");
         var board = Board.FromJagged(rows);
-        EnsureWithinLimits(board);
+        BoardGridLimits.EnsureBoardWithinLimits(board, _limits);
         return board;
-    }
-
-    private void EnsureWithinLimits(Board board)
-    {
-        if (board.RowCount > _limits.MaxRows || board.ColumnCount > _limits.MaxColumns)
-            throw new GameValidationException(
-                $"Board dimensions cannot exceed {_limits.MaxRows} rows and {_limits.MaxColumns} columns.");
     }
 
     private static BoardStateResponse ToResponse(GameBoardRecord record) =>

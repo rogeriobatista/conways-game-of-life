@@ -19,14 +19,14 @@ public sealed class MeteorScoreService(
             command.Locks,
             command.PlacedCellTotal);
 
-        var result = await repository.AddAsync(
+        var row = await repository.AddAsync(
             command.Score,
             command.Locks,
             command.PlacedCellTotal,
             cancellationToken).ConfigureAwait(false);
 
-        logger.LogDebug("Meteor score recorded with Id={Id}.", result.Id);
-        return result;
+        logger.LogDebug("Meteor score recorded with Id={Id}.", row.Id);
+        return ToResponse(row);
     }
 
     public async Task<IReadOnlyList<MeteorScoreResponse>> ListTopScoresAsync(
@@ -38,6 +38,9 @@ public sealed class MeteorScoreService(
         var scores = await repository.ListTopByScoreAsync(top, cancellationToken).ConfigureAwait(false);
 
         logger.LogDebug("Returned {Count} Meteor score(s).", scores.Count);
-        return scores;
+        return scores.Select(ToResponse).ToList();
     }
+
+    private static MeteorScoreResponse ToResponse(MeteorScoreEntry e) =>
+        new(e.Id, e.Score, e.Locks, e.PlacedCellTotal, e.CreatedAtUtc);
 }

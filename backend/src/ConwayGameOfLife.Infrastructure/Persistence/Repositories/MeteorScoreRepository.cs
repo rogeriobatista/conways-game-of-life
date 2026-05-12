@@ -1,5 +1,4 @@
 using ConwayGameOfLife.Application.Persistence;
-using ConwayGameOfLife.Application.Responses;
 using ConwayGameOfLife.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +6,7 @@ namespace ConwayGameOfLife.Infrastructure.Persistence.Repositories;
 
 public sealed class MeteorScoreRepository(GameDbContext dbContext) : IMeteorScoreRepository
 {
-    public async Task<MeteorScoreResponse> AddAsync(int score, int locks, int placedCellTotal, CancellationToken cancellationToken = default)
+    public async Task<MeteorScoreEntry> AddAsync(int score, int locks, int placedCellTotal, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var entity = new MeteorScoreEntity
@@ -22,10 +21,10 @@ public sealed class MeteorScoreRepository(GameDbContext dbContext) : IMeteorScor
         dbContext.MeteorScores.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        return ToResponse(entity);
+        return ToEntry(entity);
     }
 
-    public async Task<IReadOnlyList<MeteorScoreResponse>> ListTopByScoreAsync(int take, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MeteorScoreEntry>> ListTopByScoreAsync(int take, CancellationToken cancellationToken = default)
     {
         var capped = Math.Clamp(take, 1, 100);
         var rows = await dbContext.MeteorScores.AsNoTracking()
@@ -35,9 +34,9 @@ public sealed class MeteorScoreRepository(GameDbContext dbContext) : IMeteorScor
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return rows.ConvertAll(ToResponse);
+        return rows.ConvertAll(ToEntry);
     }
 
-    private static MeteorScoreResponse ToResponse(MeteorScoreEntity e) =>
+    private static MeteorScoreEntry ToEntry(MeteorScoreEntity e) =>
         new(e.Id, e.Score, e.Locks, e.PlacedCellTotal, DateTime.SpecifyKind(e.CreatedAtUtc, DateTimeKind.Utc));
 }

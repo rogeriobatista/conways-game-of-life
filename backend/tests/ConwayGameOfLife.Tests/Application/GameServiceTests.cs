@@ -64,7 +64,7 @@ public sealed class GameServiceTests
     {
         var id = Guid.NewGuid();
         var updated = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
-        var summaries = new List<BoardSummaryResponse> { new(id, Rows: 3, Columns: 3, updated) };
+        var summaries = new List<BoardListEntry> { new(id, Rows: 3, Columns: 3, updated) };
 
         var repo = new Mock<IGameBoardRepository>();
         repo.Setup(r => r.ListSummariesAsync(It.IsAny<CancellationToken>()))

@@ -1,5 +1,6 @@
 using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Options;
+using ConwayGameOfLife.Application.Validation;
 using FluentValidation;
 using Microsoft.Extensions.Options;
 
@@ -27,17 +28,16 @@ public sealed class CreateBoardCommandValidator : AbstractValidator<CreateBoardC
 
             RuleFor(x => x.Cells!)
                 .Must(rows => rows.Length <= limits.MaxRows)
-                .WithMessage($"Row count cannot exceed {limits.MaxRows}.");
+                .WithMessage(BoardGridLimits.RowCountExceededMessage(limits));
 
             RuleFor(x => x.Cells!)
                 .Must(HasUniformRowLengthsAndWithinColumnLimit!)
                 .OverridePropertyName(nameof(CreateBoardCommand.Cells))
-                .WithMessage(
-                    $"All rows must have the same number of columns, between 1 and {limits.MaxColumns}, with no null rows.");
+                .WithMessage(BoardGridLimits.UniformRowsMessage(limits));
 
             RuleFor(x => x.Cells!)
                 .Must((_, rows) => rows.All(r => r!.Length <= limits.MaxColumns))
-                .WithMessage($"Column count cannot exceed {limits.MaxColumns}.");
+                .WithMessage(BoardGridLimits.ColumnCountPerRowExceededMessage(limits));
         });
     }
 

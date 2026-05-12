@@ -1,6 +1,6 @@
 using System.Text.Json;
+using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Persistence;
-using ConwayGameOfLife.Application.Responses;
 using ConwayGameOfLife.Domain.Entities;
 using ConwayGameOfLife.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +11,7 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public async Task<IReadOnlyList<BoardSummaryResponse>> ListSummariesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<BoardListEntry>> ListSummariesAsync(CancellationToken cancellationToken = default)
     {
         var rows = await dbContext.Boards.AsNoTracking()
             .OrderByDescending(b => b.UpdatedAtUtc)
@@ -22,7 +22,7 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
         return rows.ConvertAll(static r =>
         {
             var (rowCount, columnCount) = ReadDimensionsFromStateJson(r.StateJson);
-            return new BoardSummaryResponse(r.Id, rowCount, columnCount, r.UpdatedAtUtc);
+            return new BoardListEntry(r.Id, rowCount, columnCount, r.UpdatedAtUtc);
         });
     }
 
@@ -49,10 +49,7 @@ public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRep
             .ConfigureAwait(false);
 
         if (entity is null)
-        {
-            throw new InvalidOperationException(
-                $"Cannot update board '{board.Id}' because it does not exist in the database.");
-        }
+            throw new BoardNotFoundException(board.Id);
 
         entity.StateJson = SerializeBoard(board.Board);
         entity.UpdatedAtUtc = DateTime.UtcNow;

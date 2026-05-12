@@ -32,7 +32,7 @@ public sealed class MeteorScoresController(
         [FromQuery] int? top,
         CancellationToken cancellationToken)
     {
-        var resolved = top ?? limitsOptions.Value.DefaultLeaderboardTop;
+        var resolved = limitsOptions.Value.ResolveLeaderboardTop(top);
         var list = await meteorScoreService.ListTopScoresAsync(resolved, cancellationToken).ConfigureAwait(false);
         return Ok(list);
     }
