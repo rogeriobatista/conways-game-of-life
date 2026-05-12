@@ -496,6 +496,31 @@
   font-size: 1.1rem;
 }
 
+/* ——— Error boundary fallback ——— */
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 60vh;
+  padding: 2rem;
+  text-align: center;
+}
+
+.error-boundary h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.error-boundary__message {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  max-width: 36ch;
+  word-break: break-word;
+}
+
 .busy-curtain {
   position: fixed;
   inset: 0;

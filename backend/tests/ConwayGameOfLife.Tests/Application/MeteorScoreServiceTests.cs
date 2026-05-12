@@ -3,6 +3,7 @@ using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace ConwayGameOfLife.Tests.Application;
@@ -17,7 +18,7 @@ public sealed class MeteorScoreServiceTests
         repo.Setup(r => r.AddAsync(425, 7, 40, It.IsAny<CancellationToken>()))
             .ReturnsAsync(created);
 
-        var sut = new MeteorScoreService(repo.Object);
+        var sut = new MeteorScoreService(repo.Object, NullLogger<MeteorScoreService>.Instance);
 
         var result = await sut.RecordScoreAsync(new CreateMeteorScoreCommand(425, 7, 40));
 
@@ -36,7 +37,7 @@ public sealed class MeteorScoreServiceTests
         repo.Setup(r => r.ListTopByScoreAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync(list);
 
-        var sut = new MeteorScoreService(repo.Object);
+        var sut = new MeteorScoreService(repo.Object, NullLogger<MeteorScoreService>.Instance);
 
         var result = await sut.ListTopScoresAsync(10);
 

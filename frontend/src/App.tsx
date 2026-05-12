@@ -6,11 +6,14 @@ import { BoardGrid } from './components/BoardGrid'
 import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
 import { InvadersPlayground } from './components/InvadersPlayground'
 import { MeteorLeaderboard } from './components/MeteorLeaderboard'
+import { createLogger } from './lib/logger'
 import { toastConfirm } from './lib/toastConfirm'
 import { useBoardDetailQuery } from './query/useBoardDetailQuery'
 import { useBoardSummariesQuery } from './query/useBoardSummariesQuery'
 import { useGameBoardMutations } from './query/useGameBoardMutations'
 import './App.css'
+
+const log = createLogger('app')
 
 type ArcadeMode = 'cascade' | 'invaders'
 
@@ -92,6 +95,7 @@ export default function App() {
   const busy = isMutating || isBoardInitialLoad
 
   const loadBoard = useCallback((id: string) => {
+    log.info('Board selected:', id)
     setSelectedId(id)
     setCreateMode(false)
     setDrawerOpen(false)
@@ -114,6 +118,7 @@ export default function App() {
   }, [draftRows, draftCols])
 
   const setPreset = useCallback((key: keyof typeof PRESETS) => {
+    log.debug('Preset applied:', key)
     const cells = PRESETS[key]()
     setDraftRows(cells.length)
     setDraftCols(cells[0].length)
@@ -132,18 +137,21 @@ export default function App() {
   }, [])
 
   const anchorDraft = useCallback(async () => {
+    log.info('Anchoring draft board:', { rows: draftRows, cols: draftCols })
     try {
       const created = await createBoard.mutateAsync(draftCells)
+      log.info('Board anchored:', created.id)
       setSelectedId(created.id)
       setCreateMode(false)
       toast.success('Realm anchored')
     } catch {
       /* toast from mutation onError */
     }
-  }, [createBoard, draftCells])
+  }, [createBoard, draftCells, draftRows, draftCols])
 
   const handleStep = useCallback(() => {
     if (!board) return
+    log.debug('Step →', board.id)
     nextGeneration.mutate(board.id, {
       onSuccess: () => setLifeTicks((t) => t + 1),
     })
@@ -152,6 +160,7 @@ export default function App() {
   const handleSprint = useCallback(() => {
     if (!board) return
     const steps = Math.max(1, advanceSteps)
+    log.debug('Sprint →', { id: board.id, steps })
     advance.mutate(
       { id: board.id, steps },
       { onSuccess: () => setLifeTicks((t) => t + steps) },
@@ -160,10 +169,12 @@ export default function App() {
 
   const handleStillness = useCallback(() => {
     if (!board) return
+    log.info('Seeking stillness →', { id: board.id, maxAttempts: finalAttempts })
     finalState.mutate(
       { id: board.id, maxAttempts: finalAttempts },
       {
         onSuccess: () => {
+          log.info('Stillness reached for board:', board.id)
           setLifeTicks((t) => t + 1)
           toast.success('Stillness found')
         },
@@ -182,6 +193,7 @@ export default function App() {
       confirmLabel: 'Erase all',
       cancelLabel: 'Keep',
       onConfirm: async () => {
+        log.info('Erasing canvas for board:', id)
         try {
           const empty = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false))
           await replaceBoard.mutateAsync({ id, cells: empty })
@@ -203,8 +215,10 @@ export default function App() {
       confirmLabel: 'Destroy',
       cancelLabel: 'Keep',
       onConfirm: async () => {
+        log.info('Destroying board:', id)
         try {
           await deleteBoard.mutateAsync(id)
+          log.info('Board destroyed:', id)
           setSelectedId(null)
           toast.success('Realm destroyed')
         } catch {
@@ -221,8 +235,10 @@ export default function App() {
 
   const uploadPlaygroundToApi = useCallback(
     async (cells: boolean[][]) => {
+      log.info('Uploading arcade board to API:', { rows: cells.length, cols: cells[0]?.length ?? 0 })
       try {
         const created = await createBoard.mutateAsync(cells)
+        log.info('Arcade board saved as realm:', created.id)
         setSelectedId(created.id)
         setArcadeMode(null)
         toast.success('Storm saved as a realm')
@@ -234,6 +250,7 @@ export default function App() {
   )
 
   const openForge = () => {
+    log.debug('Opening forge (create mode)')
     setCreateMode(true)
     setSelectedId(null)
     setDrawerOpen(true)

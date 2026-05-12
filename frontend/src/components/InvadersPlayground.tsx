@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import { createLogger } from '../lib/logger'
 import { BoardGrid } from './BoardGrid'
 import {
   INVADERS_COLS,
@@ -10,6 +11,8 @@ import {
   tryFire,
   type InvadersState,
 } from '../play/invadersLogic'
+
+const log = createLogger('invaders')
 
 const CELL_SIZE = 22
 const TICK_MS = 48
@@ -81,6 +84,14 @@ export function InvadersPlayground({ busy = false, onExitToMain }: InvadersPlayg
   )
 
   useEffect(() => {
+    if (game?.status === 'won') {
+      log.info('Meteor strike: skies cleared!', { score: game.score })
+    } else if (game?.status === 'lost') {
+      log.info('Meteor strike: formation breached.', { score: game.score })
+    }
+  }, [game?.status, game?.score])
+
+  useEffect(() => {
     if (!activePlay) return
     const id = window.setInterval(() => dispatch({ type: 'tick' }), TICK_MS)
     return () => window.clearInterval(id)
@@ -111,11 +122,14 @@ export function InvadersPlayground({ busy = false, onExitToMain }: InvadersPlayg
   }, [activePlay])
 
   const start = useCallback(() => {
+    log.info('Meteor strike: launching.')
     dispatch({ type: 'start' })
     queueMicrotask(() => wrapRef.current?.focus())
   }, [])
 
   const stop = useCallback(() => {
+    const g = gameRef.current
+    log.info('Meteor strike: leaving battle.', { score: g?.score ?? 0, status: g?.status ?? 'none' })
     dispatch({ type: 'stop' })
   }, [])
 

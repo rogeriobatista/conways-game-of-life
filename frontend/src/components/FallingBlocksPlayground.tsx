@@ -2,8 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import * as meteorScoreApi from '../api/meteorScoreApi'
+import { createLogger } from '../lib/logger'
 import { BoardGrid } from './BoardGrid'
 import { MeteorLeaderboard } from './MeteorLeaderboard'
+
+const log = createLogger('meteor')
 import {
   canPlace,
   clearFullRows,
@@ -232,6 +235,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
     }
     if (overSaveDoneRef.current) return
     overSaveDoneRef.current = true
+    log.info('Meteor shower: game over.', { score: game.score, locks: game.locks })
     if (game.score <= 0) return
     saveMeteorScore.mutate({
       score: game.score,
@@ -325,12 +329,14 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
   }, [activePlay, runHardDropAnimated])
 
   const start = useCallback(() => {
+    log.info('Meteor shower: starting new run.', { difficulty })
     dispatch({ type: 'start' })
     queueMicrotask(() => wrapRef.current?.focus())
-  }, [])
+  }, [difficulty])
 
   const stop = useCallback(() => {
     const g = gameRef.current
+    log.info('Meteor shower: leaving well.', { score: g?.score ?? 0, locks: g?.locks ?? 0 })
     if (g && g.status === 'playing' && g.score > 0) {
       saveMeteorScore.mutate({
         score: g.score,

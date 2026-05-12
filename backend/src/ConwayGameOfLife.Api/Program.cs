@@ -4,58 +4,97 @@ using ConwayGameOfLife.Infrastructure;
 using ConwayGameOfLife.Infrastructure.Persistence;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+// Bootstrap logger active until the full Serilog pipeline is built from configuration.
+// This captures any startup failures before the host is running.
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
+try
 {
-    options.SwaggerDoc("v1", new()
+    Log.Information("Starting Conway's Game of Life API.");
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog((context, services, configuration) =>
+        configuration
+            .ReadFrom.Configuration(context.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .Enrich.WithEnvironmentName()
+            .Enrich.WithThreadId()
+    );
+
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(options =>
     {
-        Title = "Conway's Game of Life API",
-        Version = "v1",
-        Description =
-            "REST API for Conway's Game of Life with SQLite persistence. A stable final state is a generation that "
-            + "does not change after one evolution step (still lifes). Oscillators typically yield 400 when "
-            + "maxAttempts is exceeded."
+        options.SwaggerDoc("v1", new()
+        {
+            Title = "Conway's Game of Life API",
+            Version = "v1",
+            Description =
+                "REST API for Conway's Game of Life with SQLite persistence. A stable final state is a generation that "
+                + "does not change after one evolution step (still lifes). Oscillators typically yield 400 when "
+                + "maxAttempts is exceeded."
+        });
     });
-});
 
-builder.Services.AddApplication(builder.Configuration);
-builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddApplication(builder.Configuration);
+    builder.Services.AddInfrastructure(builder.Configuration);
 
-builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
-builder.Services.AddProblemDetails();
-builder.Services.AddFluentValidationAutoValidation();
+    builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+    builder.Services.AddProblemDetails();
+    builder.Services.AddFluentValidationAutoValidation();
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? ["http://localhost:5173"];
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+        ?? ["http://localhost:5173"];
+    builder.Services.AddCors(options =>
     {
-        policy.WithOrigins(allowedOrigins)
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+        options.AddDefaultPolicy(policy =>
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        });
     });
-});
 
-var app = builder.Build();
+    var app = builder.Build();
 
-await using (var scope = app.Services.CreateAsyncScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
-    await db.Database.MigrateAsync().ConfigureAwait(false);
+    await using (var scope = app.Services.CreateAsyncScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+        await db.Database.MigrateAsync().ConfigureAwait(false);
+        Log.Information("Database migrations applied successfully.");
+    }
+
+    app.UseExceptionHandler();
+    app.UseCors();
+
+    // Structured HTTP request/response logging — replaces default ASP.NET access logs.
+    // Emits one log line per request including method, path, status code, and elapsed ms.
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.MessageTemplate =
+            "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0} ms";
+    });
+
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Conway Game of Life v1");
+    });
+
+    app.MapControllers();
+    app.Run();
 }
-
-app.UseExceptionHandler();
-app.UseCors();
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+catch (Exception ex) when (ex is not HostAbortedException)
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Conway Game of Life v1");
-});
-
-app.MapControllers();
-app.Run();
+    Log.Fatal(ex, "Application terminated unexpectedly.");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}
