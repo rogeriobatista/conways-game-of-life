@@ -20,9 +20,18 @@ import { queryKeys } from '../query/keys'
 const PLAY_ROWS = 28
 const PLAY_COLS = 16
 const CELL_SIZE = 16
-const AUTO_FALL_MS = 520
 const HARD_DROP_ANIM_MS = 230
 const LEADERBOARD_TOP = 30
+
+export type MeteorDifficultyId = 'easy' | 'normal' | 'hard'
+
+const DIFFICULTY: Record<MeteorDifficultyId, { label: string; subtitle: string; fallMs: number }> = {
+  easy: { label: 'Calm', subtitle: 'Slower auto-fall — more time to plan.', fallMs: 720 },
+  normal: { label: 'Storm', subtitle: 'Balanced pace — the classic rhythm.', fallMs: 520 },
+  hard: { label: 'Fury', subtitle: 'Fast auto-fall — for steady hands.', fallMs: 320 },
+}
+
+const DIFFICULTY_ORDER: MeteorDifficultyId[] = ['easy', 'normal', 'hard']
 
 type Piece = { cells: boolean[][]; row: number; col: number }
 
@@ -187,6 +196,7 @@ type FallingBlocksPlaygroundProps = {
 
 export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToMain }: FallingBlocksPlaygroundProps) {
   const [game, dispatch] = useReducer(gameReducer, null)
+  const [difficulty, setDifficulty] = useState<MeteorDifficultyId>('normal')
   const [manualOpen, setManualOpen] = useState(false)
   const [hotDropY, setHotDropY] = useState(0)
   const [hotDropMotion, setHotDropMotion] = useState(false)
@@ -276,11 +286,13 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
     }
   }, [playing])
 
+  const fallMs = DIFFICULTY[difficulty].fallMs
+
   useEffect(() => {
     if (!activePlay) return
-    const id = window.setInterval(() => dispatch({ type: 'tick' }), AUTO_FALL_MS)
+    const id = window.setInterval(() => dispatch({ type: 'tick' }), fallMs)
     return () => window.clearInterval(id)
-  }, [activePlay])
+  }, [activePlay, fallMs])
 
   useEffect(() => {
     if (!activePlay) return
@@ -352,6 +364,9 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
         <h2>Meteor shower</h2>
         {playing && scoreHud !== null ? (
           <div className="cascade__stats" aria-live="polite">
+            <span className="cascade__score cascade__score--mode">
+              {DIFFICULTY[difficulty].label}
+            </span>
             <span className="cascade__score">
               Score <strong className="mono">{scoreHud}</strong>
             </span>
@@ -375,6 +390,13 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
 
       {manualOpen ? (
         <div className="cascade-manual" id="meteor-manual">
+          <div className="cascade-manual__section">
+            <h3>Difficulty</h3>
+            <p className="cascade-manual__note" style={{ marginTop: 0 }}>
+              Before <strong>Enter storm</strong>, pick <strong>Calm</strong> (slowest auto-fall), <strong>Storm</strong>{' '}
+              (default), or <strong>Fury</strong> (fastest). You can change it whenever you are not in a run.
+            </p>
+          </div>
           <div className="cascade-manual__section">
             <h3>Controls</h3>
             <ul>
@@ -439,13 +461,39 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
       ) : null}
 
       <p className="cascade__hint">
-        Arrows + Space. Fill the well ends the run. Click the well so keys stay here. Open <strong>Manual</strong> for details.
+        Choose difficulty, then enter the storm. Arrows + Space; a full well ends the run. Open <strong>Manual</strong>{' '}
+        for details.
       </p>
       <div className="cascade__actions">
         {!playing ? (
-          <button type="button" className="btn btn--primary" onClick={start} disabled={busy}>
-            Enter storm
-          </button>
+          <div className="meteor-prelude">
+            <p className="meteor-prelude__label" id="meteor-diff-label">
+              Choose difficulty
+            </p>
+            <div className="meteor-diff-grid" role="radiogroup" aria-labelledby="meteor-diff-label">
+              {DIFFICULTY_ORDER.map((id) => {
+                const d = DIFFICULTY[id]
+                const selected = difficulty === id
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    className={`meteor-diff-card ${selected ? 'is-selected' : ''}`}
+                    onClick={() => setDifficulty(id)}
+                    disabled={busy}
+                  >
+                    <span className="meteor-diff-card__title">{d.label}</span>
+                    <span className="meteor-diff-card__sub">{d.subtitle}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <button type="button" className="btn btn--primary meteor-prelude__start" onClick={start} disabled={busy}>
+              Enter storm
+            </button>
+          </div>
         ) : (
           <>
             <button type="button" className="btn btn--ghost" onClick={stop} disabled={busy || game?.status === 'over'}>
@@ -501,6 +549,25 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToM
               )}
               <div className="meteor-game-over__mini-lb">
                 <MeteorLeaderboard top={8} title="Latest top runs" />
+              </div>
+              <p className="meteor-game-over__diff-label">Next run</p>
+              <div className="meteor-diff-grid meteor-diff-grid--compact" role="radiogroup" aria-label="Difficulty for next run">
+                {DIFFICULTY_ORDER.map((id) => {
+                  const d = DIFFICULTY[id]
+                  const selected = difficulty === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className={`meteor-diff-card meteor-diff-card--compact ${selected ? 'is-selected' : ''}`}
+                      onClick={() => setDifficulty(id)}
+                    >
+                      <span className="meteor-diff-card__title">{d.label}</span>
+                    </button>
+                  )
+                })}
               </div>
               <div className="meteor-game-over__actions">
                 <button type="button" className="btn btn--primary" onClick={() => dispatch({ type: 'reset' })}>
