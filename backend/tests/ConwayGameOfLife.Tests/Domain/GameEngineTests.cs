@@ -10,70 +10,33 @@ public sealed class GameEngineTests
     [Fact]
     public void ComputeNext_Block_IsUnchanged()
     {
-        var block = Board.FromJagged(
-            new[]
-            {
-                new[] { true, true },
-                new[] { true, true }
-            });
+        var next = _engine.ComputeNext(TestBoards.Block2x2);
 
-        var next = _engine.ComputeNext(block);
-
-        next.Equals(block).Should().BeTrue();
+        next.Equals(TestBoards.Block2x2).Should().BeTrue();
     }
 
     [Fact]
     public void ComputeNext_AllDead_StaysDead()
     {
-        var dead = Board.FromJagged(
-            new[]
-            {
-                new[] { false, false },
-                new[] { false, false }
-            });
+        var next = _engine.ComputeNext(TestBoards.AllDead2x2);
 
-        var next = _engine.ComputeNext(dead);
-
-        next.Equals(dead).Should().BeTrue();
+        next.Equals(TestBoards.AllDead2x2).Should().BeTrue();
     }
 
     [Fact]
     public void ComputeNext_BlinkerOscillates_Period2()
     {
-        var horizontal = Board.FromJagged(
-            new[]
-            {
-                new[] { false, false, false },
-                new[] { true, true, true },
-                new[] { false, false, false }
-            });
-
-        var vertical = Board.FromJagged(
-            new[]
-            {
-                new[] { false, true, false },
-                new[] { false, true, false },
-                new[] { false, true, false }
-            });
-
-        var step1 = _engine.ComputeNext(horizontal);
-        step1.Equals(vertical).Should().BeTrue();
+        var step1 = _engine.ComputeNext(TestBoards.HorizontalBlinker);
+        step1.Equals(TestBoards.VerticalBlinker).Should().BeTrue();
 
         var step2 = _engine.ComputeNext(step1);
-        step2.Equals(horizontal).Should().BeTrue();
+        step2.Equals(TestBoards.HorizontalBlinker).Should().BeTrue();
     }
 
     [Fact]
     public void ComputeNext_LiveCell_WithOneNeighbor_Dies()
     {
-        var board = Board.FromJagged(
-            new[]
-            {
-                new[] { true, false },
-                new[] { false, false }
-            });
-
-        var next = _engine.ComputeNext(board);
+        var next = _engine.ComputeNext(TestBoards.SingleCell);
 
         next[0, 0].Should().BeFalse();
     }
@@ -82,11 +45,10 @@ public sealed class GameEngineTests
     public void ComputeNext_DeadCell_WithThreeNeighbors_BecomesAlive()
     {
         var board = Board.FromJagged(
-            new[]
-            {
-                new[] { true, true, false },
-                new[] { true, false, false }
-            });
+        [
+            [true,  true,  false],
+            [true,  false, false],
+        ]);
 
         var next = _engine.ComputeNext(board);
 

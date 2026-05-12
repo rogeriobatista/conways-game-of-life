@@ -19,9 +19,7 @@ public sealed class GameService(
 
     public async Task<BoardStateResponse> GetBoardStateAsync(Guid boardId, CancellationToken cancellationToken = default)
     {
-        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
-            ?? throw new BoardNotFoundException(boardId);
-
+        var record = await RequireBoardAsync(boardId, cancellationToken).ConfigureAwait(false);
         logger.LogDebug("Read board {BoardId} state.", boardId);
         return ToResponse(record);
     }
@@ -35,10 +33,7 @@ public sealed class GameService(
 
     public async Task<BoardCreatedResponse> CreateBoardAsync(CreateBoardCommand command, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        var rows = command.Cells ?? throw new GameValidationException("Cells are required.");
-        var board = Board.FromJagged(rows);
-        EnsureWithinLimits(board);
+        var board = ParseAndValidateBoard(command);
 
         var id = Guid.NewGuid();
         await repository.AddAsync(new GameBoardRecord { Id = id, Board = board }, cancellationToken).ConfigureAwait(false);
@@ -49,11 +44,9 @@ public sealed class GameService(
 
     public async Task<BoardStateResponse> GetNextGenerationAsync(Guid boardId, CancellationToken cancellationToken = default)
     {
-        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
-            ?? throw new BoardNotFoundException(boardId);
+        var record = await RequireBoardAsync(boardId, cancellationToken).ConfigureAwait(false);
 
-        var next = engine.ComputeNext(record.Board);
-        record.Board = next;
+        record.Board = engine.ComputeNext(record.Board);
         await repository.UpdateAsync(record, cancellationToken).ConfigureAwait(false);
 
         logger.LogDebug("Board {BoardId} advanced one generation.", boardId);
@@ -66,13 +59,9 @@ public sealed class GameService(
             throw new GameValidationException("Steps must be at least 1.");
 
         if (steps > _limits.MaxAdvanceSteps)
-        {
-            throw new GameValidationException(
-                $"Steps cannot exceed {_limits.MaxAdvanceSteps} (configured limit).");
-        }
+            throw new GameValidationException($"Steps cannot exceed {_limits.MaxAdvanceSteps} (configured limit).");
 
-        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
-            ?? throw new BoardNotFoundException(boardId);
+        var record = await RequireBoardAsync(boardId, cancellationToken).ConfigureAwait(false);
 
         var current = record.Board;
         for (var i = 0; i < steps; i++)
@@ -91,13 +80,9 @@ public sealed class GameService(
             throw new GameValidationException("maxAttempts must be at least 1.");
 
         if (maxAttempts > _limits.MaxFinalStateAttempts)
-        {
-            throw new GameValidationException(
-                $"maxAttempts cannot exceed {_limits.MaxFinalStateAttempts} (configured limit).");
-        }
+            throw new GameValidationException($"maxAttempts cannot exceed {_limits.MaxFinalStateAttempts} (configured limit).");
 
-        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
-            ?? throw new BoardNotFoundException(boardId);
+        var record = await RequireBoardAsync(boardId, cancellationToken).ConfigureAwait(false);
 
         var current = record.Board;
         for (var attempt = 0; attempt < maxAttempts; attempt++)
@@ -111,8 +96,7 @@ public sealed class GameService(
                 await repository.UpdateAsync(record, cancellationToken).ConfigureAwait(false);
                 logger.LogInformation(
                     "Board {BoardId} reached stable state after {Attempts} attempt(s).",
-                    boardId,
-                    attempt + 1);
+                    boardId, attempt + 1);
 
                 return ToResponse(record);
             }
@@ -125,8 +109,7 @@ public sealed class GameService(
 
         logger.LogWarning(
             "Board {BoardId} did not stabilize within {MaxAttempts} attempts.",
-            boardId,
-            maxAttempts);
+            boardId, maxAttempts);
 
         throw new FinalStateNotReachedException(boardId, maxAttempts);
     }
@@ -142,32 +125,43 @@ public sealed class GameService(
 
     public async Task<BoardStateResponse> ReplaceBoardAsync(Guid boardId, CreateBoardCommand command, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        var record = await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
-            ?? throw new BoardNotFoundException(boardId);
-
-        var rows = command.Cells ?? throw new GameValidationException("Cells are required.");
-        var board = Board.FromJagged(rows);
-        EnsureWithinLimits(board);
+        var record = await RequireBoardAsync(boardId, cancellationToken).ConfigureAwait(false);
+        var board = ParseAndValidateBoard(command);
 
         record.Board = board;
         await repository.UpdateAsync(record, cancellationToken).ConfigureAwait(false);
         logger.LogInformation(
             "Replaced board {BoardId} with new state {Rows}x{Columns}.",
-            boardId,
-            board.RowCount,
-            board.ColumnCount);
+            boardId, board.RowCount, board.ColumnCount);
 
         return ToResponse(record);
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────────────
+
+    /// <summary>Loads a board by id or throws <see cref="BoardNotFoundException"/>.</summary>
+    private async Task<GameBoardRecord> RequireBoardAsync(Guid boardId, CancellationToken cancellationToken) =>
+        await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
+            ?? throw new BoardNotFoundException(boardId);
+
+    /// <summary>
+    /// Validates the command, parses its cell grid into a <see cref="Board"/>,
+    /// and asserts it is within the configured dimension limits.
+    /// </summary>
+    private Board ParseAndValidateBoard(CreateBoardCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        var rows = command.Cells ?? throw new GameValidationException("Cells are required.");
+        var board = Board.FromJagged(rows);
+        EnsureWithinLimits(board);
+        return board;
     }
 
     private void EnsureWithinLimits(Board board)
     {
         if (board.RowCount > _limits.MaxRows || board.ColumnCount > _limits.MaxColumns)
-        {
             throw new GameValidationException(
                 $"Board dimensions cannot exceed {_limits.MaxRows} rows and {_limits.MaxColumns} columns.");
-        }
     }
 
     private static BoardStateResponse ToResponse(GameBoardRecord record) =>

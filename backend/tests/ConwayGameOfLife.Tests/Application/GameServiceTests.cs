@@ -21,7 +21,8 @@ public sealed class GameServiceTests
             MaxColumns = 50,
             MaxAdvanceSteps = 500,
             MaxFinalStateAttempts = 200,
-            DefaultFinalStateMaxAttempts = 50
+            DefaultFinalStateMaxAttempts = 50,
+            DefaultLeaderboardTop = 10,
         };
 
     private static GameService CreateSut(
@@ -33,26 +34,26 @@ public sealed class GameServiceTests
             Options.Create(Limits),
             NullLogger<GameService>.Instance);
 
+    private static Mock<IGameBoardRepository> RepoWith(Guid id, Board board)
+    {
+        var repo = new Mock<IGameBoardRepository>();
+        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GameBoardRecord { Id = id, Board = board });
+        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        return repo;
+    }
+
     [Fact]
     public async Task GetBoardStateAsync_ReturnsCurrentBoardWithoutUpdate()
     {
-        var block = Board.FromJagged(
-            new[]
-            {
-                new[] { true, true },
-                new[] { true, true }
-            });
-
         var id = Guid.NewGuid();
-        var repo = new Mock<IGameBoardRepository>();
-        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GameBoardRecord { Id = id, Board = block });
-
+        var repo = RepoWith(id, TestBoards.Block2x2);
         var sut = CreateSut(repo);
 
         var response = await sut.GetBoardStateAsync(id);
 
-        response.Cells.Should().BeEquivalentTo(block.ToJagged(), options => options.WithStrictOrdering());
+        response.Cells.Should().BeEquivalentTo(TestBoards.Block2x2.ToJagged(), o => o.WithStrictOrdering());
         repo.Verify(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -61,10 +62,7 @@ public sealed class GameServiceTests
     {
         var id = Guid.NewGuid();
         var updated = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc);
-        var summaries = new List<BoardSummaryResponse>
-        {
-            new(id, Rows: 3, Columns: 3, updated)
-        };
+        var summaries = new List<BoardSummaryResponse> { new(id, Rows: 3, Columns: 3, updated) };
 
         var repo = new Mock<IGameBoardRepository>();
         repo.Setup(r => r.ListSummariesAsync(It.IsAny<CancellationToken>()))
@@ -94,9 +92,9 @@ public sealed class GameServiceTests
         {
             Cells =
             [
-                [false, true, false],
-                [false, true, false],
-                [false, true, false]
+                [false, true,  false],
+                [false, true,  false],
+                [false, true,  false],
             ]
         };
 
@@ -113,48 +111,21 @@ public sealed class GameServiceTests
     [Fact]
     public async Task GetFinalStableStateAsync_Block_ReturnsImmediately()
     {
-        var block = Board.FromJagged(
-            new[]
-            {
-                new[] { true, true },
-                new[] { true, true }
-            });
-
         var id = Guid.NewGuid();
-        var repo = new Mock<IGameBoardRepository>();
-        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GameBoardRecord { Id = id, Board = block });
-
-        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
+        var repo = RepoWith(id, TestBoards.Block2x2);
         var sut = CreateSut(repo);
 
         var response = await sut.GetFinalStableStateAsync(id, maxAttempts: 10);
 
-        response.Cells.Should().BeEquivalentTo(block.ToJagged(), options => options.WithStrictOrdering());
+        response.Cells.Should().BeEquivalentTo(TestBoards.Block2x2.ToJagged(), o => o.WithStrictOrdering());
         repo.Verify(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task GetFinalStableStateAsync_Blinker_ThrowsWhenNotStableWithinAttempts()
     {
-        var blinker = Board.FromJagged(
-            new[]
-            {
-                new[] { false, false, false },
-                new[] { true, true, true },
-                new[] { false, false, false }
-            });
-
         var id = Guid.NewGuid();
-        var repo = new Mock<IGameBoardRepository>();
-        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GameBoardRecord { Id = id, Board = blinker });
-
-        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
+        var repo = RepoWith(id, TestBoards.HorizontalBlinker);
         var sut = CreateSut(repo);
 
         var act = async () => await sut.GetFinalStableStateAsync(id, maxAttempts: 6);
@@ -166,56 +137,29 @@ public sealed class GameServiceTests
     [Fact]
     public async Task AdvanceAsync_AppliesSteps()
     {
-        var horizontal = Board.FromJagged(
-            new[]
-            {
-                new[] { false, false, false },
-                new[] { true, true, true },
-                new[] { false, false, false }
-            });
-
         var id = Guid.NewGuid();
-        var repo = new Mock<IGameBoardRepository>();
-        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GameBoardRecord { Id = id, Board = horizontal });
-
-        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
+        var repo = RepoWith(id, TestBoards.HorizontalBlinker);
         var sut = CreateSut(repo);
 
+        // Blinker oscillates with period 2; two steps returns to the original state.
         var afterTwo = await sut.AdvanceAsync(id, steps: 2);
 
-        afterTwo.Cells.Should().BeEquivalentTo(horizontal.ToJagged(), options => options.WithStrictOrdering());
+        afterTwo.Cells.Should().BeEquivalentTo(TestBoards.HorizontalBlinker.ToJagged(), o => o.WithStrictOrdering());
     }
 
     [Fact]
     public async Task GetNextGenerationAsync_UpdatesStoredBoard()
     {
-        var horizontal = Board.FromJagged(
-            new[]
-            {
-                new[] { false, false, false },
-                new[] { true, true, true },
-                new[] { false, false, false }
-            });
-
         var engine = new GameEngine();
-        var expectedNext = engine.ComputeNext(horizontal);
+        var expectedNext = engine.ComputeNext(TestBoards.HorizontalBlinker);
 
         var id = Guid.NewGuid();
-        var repo = new Mock<IGameBoardRepository>();
-        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GameBoardRecord { Id = id, Board = horizontal });
-
-        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
+        var repo = RepoWith(id, TestBoards.HorizontalBlinker);
         var sut = CreateSut(repo, engine);
 
         var response = await sut.GetNextGenerationAsync(id);
 
-        response.Cells.Should().BeEquivalentTo(expectedNext.ToJagged(), options => options.WithStrictOrdering());
+        response.Cells.Should().BeEquivalentTo(expectedNext.ToJagged(), o => o.WithStrictOrdering());
     }
 
     [Fact]
@@ -248,27 +192,15 @@ public sealed class GameServiceTests
     public async Task ReplaceBoardAsync_UpdatesStoredCells()
     {
         var id = Guid.NewGuid();
-        var block = Board.FromJagged(
-            new[]
-            {
-                new[] { true, true },
-                new[] { true, true }
-            });
-
-        var repo = new Mock<IGameBoardRepository>();
-        repo.Setup(r => r.GetByIdAsync(id, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GameBoardRecord { Id = id, Board = block });
-
-        repo.Setup(r => r.UpdateAsync(It.IsAny<GameBoardRecord>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
+        var repo = RepoWith(id, TestBoards.Block2x2);
         var sut = CreateSut(repo);
-        var empty = new[] { new[] { false, false }, new[] { false, false } };
+
+        var empty = new bool[][] { [false, false], [false, false] };
         var cmd = new CreateBoardCommand { Cells = empty };
 
         var response = await sut.ReplaceBoardAsync(id, cmd);
 
-        response.Cells.Should().BeEquivalentTo(empty, options => options.WithStrictOrdering());
+        response.Cells.Should().BeEquivalentTo(empty, o => o.WithStrictOrdering());
         repo.Verify(
             r => r.UpdateAsync(
                 It.Is<GameBoardRecord>(g => g.Id == id && g.Board.RowCount == 2 && !g.Board[0, 0]),
