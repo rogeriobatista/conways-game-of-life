@@ -1,0 +1,15 @@
+.git
+**/node_modules
+**/bin
+**/obj
+**/.vs
+**/.idea
+**/*.user
+**/dist
+**/logs
+**/*.db
+**/*.db-shm
+**/*.db-wal
+backend/tests/**/TestResults
+.cursor
+**/.cursor

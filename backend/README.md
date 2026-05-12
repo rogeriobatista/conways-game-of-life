@@ -5,6 +5,7 @@ Production-oriented ASP.NET Core REST API for [Conway's Game of Life](https://en
 ## Prerequisites
 
 - [.NET SDK](https://dotnet.microsoft.com/download) 10 (or adjust `TargetFramework` in each `.csproj` if you need 8/9 and matching EF Core packages).
+- [Docker](https://docs.docker.com/get-docker/) — optional; see **Docker** below.
 
 ## How to run
 
@@ -21,6 +22,23 @@ On startup the API applies EF Core migrations (SQLite file is created next to th
 
 - HTTP: see `src/ConwayGameOfLife.Api/Properties/launchSettings.json` (default `http://localhost:5021`).
 - Swagger UI: `/swagger`
+
+## Docker
+
+Build and run **only the API** (SQLite file is created under the container working directory unless you override `ConnectionStrings__DefaultConnection`):
+
+```bash
+cd backend
+docker build -t conway-game-of-life-api .
+docker run --rm -p 5021:8080 \
+  -e ConnectionStrings__DefaultConnection="Data Source=/tmp/gameoflife.db" \
+  -e Cors__AllowedOrigins__0="http://localhost:5173" \
+  conway-game-of-life-api
+```
+
+The published image listens on **port 8080** inside the container (`ASPNETCORE_URLS`); map it as needed (e.g. `-p 5021:8080`).
+
+For **API + React UI** together, use **Docker Compose from the monorepo root** — see the root [`README.md`](../README.md#docker-compose-api--ui).
 
 ### Configuration (`appsettings.json`)
 

@@ -1,0 +1,38 @@
+# Full stack: SQLite-backed API + static SPA (nginx proxies /api to the API).
+#
+# Usage (from repo root):
+#   docker compose up --build
+#
+# Then open:
+#   http://localhost:8080        — React UI (nginx also proxies /api and /swagger)
+#   http://localhost:8080/swagger — API docs
+#   http://localhost:5021/swagger — API directly (optional published port)
+#
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Data Source=/data/gameoflife.db
+      # Used if you open the API origin directly in a browser; same-origin via :8080 needs no CORS.
+      Cors__AllowedOrigins__0: http://localhost:8080
+      Cors__AllowedOrigins__1: http://127.0.0.1:8080
+    volumes:
+      - conway_sqlite:/data
+    ports:
+      - "5021:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  conway_sqlite:
