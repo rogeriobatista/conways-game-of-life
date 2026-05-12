@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import * as gameApi from './api/gameApi'
 import type { BoardState, BoardSummary } from './api/types'
 import { BoardGrid } from './components/BoardGrid'
 import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
+import { toastConfirm } from './lib/toastConfirm'
 import './App.css'
 
 function emptyGrid(rows: number, cols: number): boolean[][] {
@@ -49,7 +51,6 @@ export default function App() {
   const [advanceSteps, setAdvanceSteps] = useState(5)
   const [finalAttempts, setFinalAttempts] = useState(500)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showArcade, setShowArcade] = useState(false)
   const [lifeTicks, setLifeTicks] = useState(0)
 
@@ -58,11 +59,10 @@ export default function App() {
   }, [board?.id])
 
   const refreshList = useCallback(async () => {
-    setError(null)
     try {
       setSummaries(await gameApi.listBoards())
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reach the archives.')
+      toast.error(e instanceof Error ? e.message : 'Could not reach the archives.')
     }
   }, [])
 
@@ -70,24 +70,20 @@ export default function App() {
     void refreshList()
   }, [refreshList])
 
-  const loadBoard = useCallback(
-    async (id: string) => {
-      setError(null)
-      setBusy(true)
-      try {
-        const state = await gameApi.getBoard(id)
-        setBoard(state)
-        setSelectedId(id)
-        setCreateMode(false)
-        setDrawerOpen(false)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'That realm could not be opened.')
-      } finally {
-        setBusy(false)
-      }
-    },
-    [],
-  )
+  const loadBoard = useCallback(async (id: string) => {
+    setBusy(true)
+    try {
+      const state = await gameApi.getBoard(id)
+      setBoard(state)
+      setSelectedId(id)
+      setCreateMode(false)
+      setDrawerOpen(false)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'That realm could not be opened.')
+    } finally {
+      setBusy(false)
+    }
+  }, [])
 
   const applyDraftSize = useCallback(() => {
     const r = Math.max(1, Math.min(200, draftRows))
@@ -125,14 +121,14 @@ export default function App() {
   }, [])
 
   const anchorDraft = useCallback(async () => {
-    setError(null)
     setBusy(true)
     try {
       const created = await gameApi.createBoard(draftCells)
       await refreshList()
       await loadBoard(created.id)
+      toast.success('Realm anchored')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'The pattern refused to bind.')
+      toast.error(e instanceof Error ? e.message : 'The pattern refused to bind.')
     } finally {
       setBusy(false)
     }
@@ -140,7 +136,6 @@ export default function App() {
 
   const handleStep = useCallback(async () => {
     if (!board) return
-    setError(null)
     setBusy(true)
     try {
       const next = await gameApi.nextGeneration(board.id)
@@ -148,7 +143,7 @@ export default function App() {
       setLifeTicks((t) => t + 1)
       await refreshList()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Time stuttered.')
+      toast.error(e instanceof Error ? e.message : 'Time stuttered.')
     } finally {
       setBusy(false)
     }
@@ -156,7 +151,6 @@ export default function App() {
 
   const handleSprint = useCallback(async () => {
     if (!board) return
-    setError(null)
     setBusy(true)
     try {
       const steps = Math.max(1, advanceSteps)
@@ -165,7 +159,7 @@ export default function App() {
       setLifeTicks((t) => t + steps)
       await refreshList()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Time stuttered.')
+      toast.error(e instanceof Error ? e.message : 'Time stuttered.')
     } finally {
       setBusy(false)
     }
@@ -173,53 +167,71 @@ export default function App() {
 
   const handleStillness = useCallback(async () => {
     if (!board) return
-    setError(null)
     setBusy(true)
     try {
       const next = await gameApi.finalState(board.id, finalAttempts)
       setBoard(next)
       setLifeTicks((t) => t + 1)
       await refreshList()
+      toast.success('Stillness found')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'The pattern never slept.')
+      toast.error(e instanceof Error ? e.message : 'The pattern never slept.')
     } finally {
       setBusy(false)
     }
   }, [board, finalAttempts, refreshList])
 
-  const clearBoard = useCallback(async () => {
+  const clearBoard = useCallback(() => {
     if (!board) return
-    if (!window.confirm('Erase every living cell in this realm? The save remains—only the canvas is wiped.')) return
-    setError(null)
-    setBusy(true)
-    try {
-      const empty = Array.from({ length: board.rows }, () => Array<boolean>(board.columns).fill(false))
-      const next = await gameApi.replaceBoard(board.id, empty)
-      setBoard(next)
-      setLifeTicks(0)
-      await refreshList()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'The void would not clear.')
-    } finally {
-      setBusy(false)
-    }
+    const id = board.id
+    const rows = board.rows
+    const cols = board.columns
+    toastConfirm({
+      title: 'Erase every living cell?',
+      description: 'The save remains—only the canvas is wiped.',
+      confirmLabel: 'Erase all',
+      cancelLabel: 'Keep',
+      onConfirm: async () => {
+        setBusy(true)
+        try {
+          const empty = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false))
+          const next = await gameApi.replaceBoard(id, empty)
+          setBoard(next)
+          setLifeTicks(0)
+          await refreshList()
+          toast.success('Canvas cleared')
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'The void would not clear.')
+        } finally {
+          setBusy(false)
+        }
+      },
+    })
   }, [board, refreshList])
 
-  const deleteBoardHandler = useCallback(async () => {
+  const deleteBoardHandler = useCallback(() => {
     if (!board) return
-    if (!window.confirm('Destroy this realm and all memory of it? This cannot be undone.')) return
-    setError(null)
-    setBusy(true)
-    try {
-      await gameApi.deleteBoard(board.id)
-      setBoard(null)
-      setSelectedId(null)
-      await refreshList()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'The realm clung on.')
-    } finally {
-      setBusy(false)
-    }
+    const id = board.id
+    toastConfirm({
+      title: 'Destroy this realm?',
+      description: 'All memory of it will be gone. This cannot be undone.',
+      confirmLabel: 'Destroy',
+      cancelLabel: 'Keep',
+      onConfirm: async () => {
+        setBusy(true)
+        try {
+          await gameApi.deleteBoard(id)
+          setBoard(null)
+          setSelectedId(null)
+          await refreshList()
+          toast.success('Realm destroyed')
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : 'The realm clung on.')
+        } finally {
+          setBusy(false)
+        }
+      },
+    })
   }, [board, refreshList])
 
   const displayCells = useMemo(() => {
@@ -229,15 +241,15 @@ export default function App() {
 
   const uploadPlaygroundToApi = useCallback(
     async (cells: boolean[][]) => {
-      setError(null)
       setBusy(true)
       try {
         const created = await gameApi.createBoard(cells)
         await refreshList()
         await loadBoard(created.id)
         setShowArcade(false)
+        toast.success('Storm saved as a realm')
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not anchor the storm.')
+        toast.error(e instanceof Error ? e.message : 'Could not anchor the storm.')
       } finally {
         setBusy(false)
       }
@@ -377,12 +389,6 @@ export default function App() {
       )}
 
       <main className="stage">
-        {error ? (
-          <div className="stage__alert" role="alert">
-            {error}
-          </div>
-        ) : null}
-
         {showArcade ? (
           <div className="stage__arena">
             <FallingBlocksPlayground busy={busy} onUploadToApi={uploadPlaygroundToApi} />
@@ -476,10 +482,10 @@ export default function App() {
               </div>
               <div className="dock__sep" />
               <div className="dock__group">
-                <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => void clearBoard()}>
+                <button type="button" className="btn btn--ghost" disabled={busy} onClick={clearBoard}>
                   Erase canvas
                 </button>
-                <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void deleteBoardHandler()}>
+                <button type="button" className="btn btn--danger" disabled={busy} onClick={deleteBoardHandler}>
                   Destroy realm
                 </button>
               </div>

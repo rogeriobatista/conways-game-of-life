@@ -65,3 +65,24 @@ h3 {
   color: var(--text);
   font-weight: 700;
 }
+
+/* Sonner — align with game shell */
+[data-sonner-toaster] {
+  font-family: var(--font-ui), system-ui, sans-serif;
+}
+
+[data-sonner-toaster][data-sonner-theme='dark'] {
+  --normal-bg: rgba(12, 18, 32, 0.96);
+  --normal-bg-hover: rgba(18, 26, 44, 0.98);
+  --normal-border: rgba(100, 140, 200, 0.28);
+  --normal-border-hover: rgba(120, 200, 255, 0.35);
+  --normal-text: #e8f0ff;
+  --border-radius: 12px;
+}
+
+[data-sonner-toaster][data-sonner-theme='dark'] [data-sonner-toast].app-toast[data-styled='true'] {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 16px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+}
