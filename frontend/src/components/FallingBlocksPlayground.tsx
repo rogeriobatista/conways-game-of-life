@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { toast } from 'sonner'
 import * as meteorScoreApi from '../api/meteorScoreApi'
 import { BoardGrid } from './BoardGrid'
+import { MeteorLeaderboard } from './MeteorLeaderboard'
 import {
   canPlace,
   clearFullRows,
@@ -12,7 +13,7 @@ import {
   emptyGrid,
   mergePiece,
   rotateCw,
-  spawnPiece,
+  trySpawnPiece,
 } from '../play/fallingLogic'
 import { queryKeys } from '../query/keys'
 
@@ -25,14 +26,24 @@ const LEADERBOARD_TOP = 30
 
 type Piece = { cells: boolean[][]; row: number; col: number }
 
-type GameState = {
+type PlayingState = {
+  status: 'playing'
   landed: boolean[][]
   piece: Piece
   locks: number
   score: number
-  /** Cumulative live cells merged from locked pieces (drives +25 per 10 blocks). */
   placedCellTotal: number
 }
+
+type OverState = {
+  status: 'over'
+  landed: boolean[][]
+  locks: number
+  score: number
+  placedCellTotal: number
+}
+
+type GameState = PlayingState | OverState
 
 type GameAction =
   | { type: 'start' }
@@ -47,29 +58,53 @@ type GameAction =
 
 function initialGame(): GameState {
   const cleared = emptyGrid(PLAY_ROWS, PLAY_COLS)
-  const { landed, piece } = spawnPiece(cleared, PLAY_ROWS, PLAY_COLS)
-  return { landed, piece, locks: 0, score: 0, placedCellTotal: 0 }
+  const spawned = trySpawnPiece(cleared, PLAY_ROWS, PLAY_COLS)
+  if (!spawned) {
+    throw new Error('Empty well must accept a spawn.')
+  }
+  return {
+    status: 'playing',
+    landed: spawned.landed,
+    piece: spawned.piece,
+    locks: 0,
+    score: 0,
+    placedCellTotal: 0,
+  }
 }
 
 function lockPieceAndSpawn(
   landed: boolean[][],
   piece: Piece,
-  meta: Pick<GameState, 'locks' | 'score' | 'placedCellTotal'>,
+  meta: Pick<PlayingState, 'locks' | 'score' | 'placedCellTotal'>,
 ): GameState {
   const merged = mergePiece(landed, piece.cells, piece.row, piece.col)
   const rowsCleared = countFullRows(merged)
   const afterLines = clearFullRows(merged)
-  const spawned = spawnPiece(afterLines, PLAY_ROWS, PLAY_COLS)
   const pieceCells = countLiveCells(piece.cells)
   const placedCellTotal = meta.placedCellTotal + pieceCells
   const oldTiers = Math.floor(meta.placedCellTotal / 10)
   const newTiers = Math.floor(placedCellTotal / 10)
   const placementBonus = (newTiers - oldTiers) * 25
+  const nextScore = meta.score + rowsCleared * 100 + placementBonus
+  const nextLocks = meta.locks + 1
+
+  const spawned = trySpawnPiece(afterLines, PLAY_ROWS, PLAY_COLS)
+  if (!spawned) {
+    return {
+      status: 'over',
+      landed: afterLines,
+      locks: nextLocks,
+      score: nextScore,
+      placedCellTotal,
+    }
+  }
+
   return {
+    status: 'playing',
     landed: spawned.landed,
     piece: spawned.piece,
-    locks: meta.locks + 1,
-    score: meta.score + rowsCleared * 100 + placementBonus,
+    locks: nextLocks,
+    score: nextScore,
     placedCellTotal,
   }
 }
@@ -78,6 +113,7 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
   if (action.type === 'stop') return null
   if (action.type === 'start' || action.type === 'reset') return initialGame()
   if (!state) return null
+  if (state.status === 'over') return state
 
   const { landed, piece, locks, score, placedCellTotal } = state
 
@@ -119,11 +155,15 @@ function gameReducer(state: GameState | null, action: GameAction): GameState | n
   }
 }
 
-function composite(landed: boolean[][], piece: Piece): { cells: boolean[][]; hot: boolean[][] } {
-  const rows = landed.length
-  const cols = landed[0]?.length ?? 0
-  const cells = landed.map((row) => [...row])
+function getComposite(game: GameState): { cells: boolean[][]; hot: boolean[][] } {
+  if (game.status === 'over') {
+    return { cells: game.landed.map((r) => [...r]), hot: emptyGrid(PLAY_ROWS, PLAY_COLS) }
+  }
+  const rows = game.landed.length
+  const cols = game.landed[0]?.length ?? 0
+  const cells = game.landed.map((row) => [...row])
   const hot = emptyGrid(rows, cols)
+  const piece = game.piece
   for (let r = 0; r < piece.cells.length; r++) {
     for (let c = 0; c < piece.cells[r].length; c++) {
       if (!piece.cells[r][c]) continue
@@ -138,20 +178,14 @@ function composite(landed: boolean[][], piece: Piece): { cells: boolean[][]; hot
   return { cells, hot }
 }
 
-function formatScoreboardWhen(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  } catch {
-    return ''
-  }
-}
-
 type FallingBlocksPlaygroundProps = {
   busy?: boolean
   onUploadToApi: (cells: boolean[][]) => Promise<void>
+  /** Called after user leaves from game-over (main realms UI). */
+  onExitToMain?: () => void
 }
 
-export function FallingBlocksPlayground({ busy = false, onUploadToApi }: FallingBlocksPlaygroundProps) {
+export function FallingBlocksPlayground({ busy = false, onUploadToApi, onExitToMain }: FallingBlocksPlaygroundProps) {
   const [game, dispatch] = useReducer(gameReducer, null)
   const [manualOpen, setManualOpen] = useState(false)
   const [hotDropY, setHotDropY] = useState(0)
@@ -160,6 +194,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
   const wrapRef = useRef<HTMLDivElement>(null)
   const gameRef = useRef(game)
   const hardDropAnimLockRef = useRef(false)
+  const overSaveDoneRef = useRef(false)
   const queryClient = useQueryClient()
 
   gameRef.current = game
@@ -173,19 +208,32 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
   const saveMeteorScore = useMutation({
     mutationFn: meteorScoreApi.createMeteorScore,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.meteorScores(LEADERBOARD_TOP) })
+      void queryClient.invalidateQueries({ queryKey: ['game', 'meteor-scores'] })
     },
     onError: () => {
       toast.error('Could not save score to the archive.')
     },
   })
 
-  const playing = game !== null
+  useEffect(() => {
+    if (game?.status !== 'over') {
+      overSaveDoneRef.current = false
+      return
+    }
+    if (overSaveDoneRef.current) return
+    overSaveDoneRef.current = true
+    if (game.score <= 0) return
+    saveMeteorScore.mutate({
+      score: game.score,
+      locks: game.locks,
+      placedCellTotal: game.placedCellTotal,
+    })
+  }, [game, saveMeteorScore])
 
-  const { cells, hot } = useMemo(
-    () => (game ? composite(game.landed, game.piece) : { cells: emptyGrid(PLAY_ROWS, PLAY_COLS), hot: emptyGrid(PLAY_ROWS, PLAY_COLS) }),
-    [game],
-  )
+  const playing = game !== null
+  const activePlay = game?.status === 'playing'
+
+  const { cells, hot } = useMemo(() => (game ? getComposite(game) : { cells: emptyGrid(PLAY_ROWS, PLAY_COLS), hot: emptyGrid(PLAY_ROWS, PLAY_COLS) }), [game])
 
   const triggerImpactFlash = useCallback(() => {
     setImpactFlash(true)
@@ -194,7 +242,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
 
   const runHardDropAnimated = useCallback(() => {
     const g = gameRef.current
-    if (!g || hardDropAnimLockRef.current) return
+    if (!g || g.status !== 'playing' || hardDropAnimLockRef.current) return
     const finalRow = computeHardDropRow(g.landed, g.piece)
     const dist = finalRow - g.piece.row
     if (dist === 0) {
@@ -229,13 +277,13 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
   }, [playing])
 
   useEffect(() => {
-    if (!playing) return
+    if (!activePlay) return
     const id = window.setInterval(() => dispatch({ type: 'tick' }), AUTO_FALL_MS)
     return () => window.clearInterval(id)
-  }, [playing])
+  }, [activePlay])
 
   useEffect(() => {
-    if (!playing) return
+    if (!activePlay) return
     const onKey = (e: KeyboardEvent) => {
       if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(e.key)) {
         e.preventDefault()
@@ -262,7 +310,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [playing, runHardDropAnimated])
+  }, [activePlay, runHardDropAnimated])
 
   const start = useCallback(() => {
     dispatch({ type: 'start' })
@@ -271,7 +319,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
 
   const stop = useCallback(() => {
     const g = gameRef.current
-    if (g && g.score > 0) {
+    if (g && g.status === 'playing' && g.score > 0) {
       saveMeteorScore.mutate({
         score: g.score,
         locks: g.locks,
@@ -281,23 +329,34 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
     dispatch({ type: 'stop' })
   }, [saveMeteorScore])
 
+  const exitToMain = useCallback(() => {
+    dispatch({ type: 'stop' })
+    onExitToMain?.()
+  }, [onExitToMain])
+
   const upload = useCallback(async () => {
     if (!game) return
-    const snapshot = clearFullRows(mergePiece(game.landed, game.piece.cells, game.piece.row, game.piece.col))
+    const snapshot =
+      game.status === 'over'
+        ? clearFullRows(game.landed)
+        : clearFullRows(mergePiece(game.landed, game.piece.cells, game.piece.row, game.piece.col))
     await onUploadToApi(snapshot)
   }, [game, onUploadToApi])
 
+  const scoreHud = game && (game.status === 'playing' || game.status === 'over') ? game.score : null
+  const locksHud = game && (game.status === 'playing' || game.status === 'over') ? game.locks : null
+
   return (
-    <section className="cascade">
+    <section className="cascade cascade--meteor">
       <div className="cascade__head">
         <h2>Meteor shower</h2>
-        {playing ? (
+        {playing && scoreHud !== null ? (
           <div className="cascade__stats" aria-live="polite">
             <span className="cascade__score">
-              Score <strong className="mono">{game.score}</strong>
+              Score <strong className="mono">{scoreHud}</strong>
             </span>
             <span className="cascade__score">
-              Anchors <strong>{game.locks}</strong>
+              Anchors <strong>{locksHud}</strong>
             </span>
           </div>
         ) : null}
@@ -346,9 +405,15 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
             <p className="cascade-manual__note">Score resets when you start a new storm or clear the sky.</p>
           </div>
           <div className="cascade-manual__section">
+            <h3>Game over</h3>
+            <p className="cascade-manual__note" style={{ marginTop: 0 }}>
+              When the well is full and the next meteor cannot spawn, the run ends. Your score is saved automatically (if above zero). Choose <strong>New storm</strong> or return to the <strong>main screen</strong>.
+            </p>
+          </div>
+          <div className="cascade-manual__section">
             <h3>Scoreboard (saved)</h3>
             <p className="cascade-manual__note" style={{ marginTop: 0 }}>
-              When you <strong>Leave well</strong>, a run with score greater than zero is stored on the server. Open this manual to refresh the list.
+              Scores are stored when you <strong>Leave well</strong> during play or when a run <strong>ends</strong>. Open this manual to refresh.
             </p>
             {leaderboardQuery.isLoading ? (
               <p className="cascade-manual__note">Loading…</p>
@@ -361,7 +426,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
                     <span className="cascade-manual__rank">{i + 1}</span>
                     <span className="cascade-manual__lb-score mono">{row.score}</span>
                     <span className="cascade-manual__lb-meta">
-                      {row.locks} locks · {formatScoreboardWhen(row.createdAtUtc)}
+                      {row.locks} locks · {new Date(row.createdAtUtc).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </li>
                 ))}
@@ -374,8 +439,7 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
       ) : null}
 
       <p className="cascade__hint">
-        Arrows + Space. Full rows shatter. Click the well so keys stay here. Open <strong>Manual</strong> for scoring
-        and leaderboard.
+        Arrows + Space. Fill the well ends the run. Click the well so keys stay here. Open <strong>Manual</strong> for details.
       </p>
       <div className="cascade__actions">
         {!playing ? (
@@ -384,10 +448,15 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
           </button>
         ) : (
           <>
-            <button type="button" className="btn btn--ghost" onClick={stop} disabled={busy}>
+            <button type="button" className="btn btn--ghost" onClick={stop} disabled={busy || game?.status === 'over'}>
               Leave well
             </button>
-            <button type="button" className="btn btn--ghost" onClick={() => dispatch({ type: 'reset' })} disabled={busy}>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => dispatch({ type: 'reset' })}
+              disabled={busy || game?.status === 'over'}
+            >
               Clear sky
             </button>
             <button type="button" className="btn" onClick={() => void upload()} disabled={busy}>
@@ -396,24 +465,54 @@ export function FallingBlocksPlayground({ busy = false, onUploadToApi }: Falling
           </>
         )}
       </div>
-      <div
-        ref={wrapRef}
-        className="cascade-focus"
-        tabIndex={0}
-        role="application"
-        aria-label="Meteor shower"
-        aria-describedby={manualOpen ? 'meteor-manual' : undefined}
-      >
-        <div className="grid-shell">
-          <BoardGrid
-            cells={cells}
-            hotMask={hot}
-            cellSize={CELL_SIZE}
-            hotTranslateY={hotDropY}
-            hotMotion={hotDropMotion}
-            impactFlash={impactFlash}
-          />
+      <div className="cascade__playfield">
+        <div
+          ref={wrapRef}
+          className="cascade-focus"
+          tabIndex={0}
+          role="application"
+          aria-label="Meteor shower"
+          aria-describedby={manualOpen ? 'meteor-manual' : undefined}
+        >
+          <div className="grid-shell">
+            <BoardGrid
+              cells={cells}
+              hotMask={hot}
+              cellSize={CELL_SIZE}
+              hotTranslateY={hotDropY}
+              hotMotion={hotDropMotion}
+              impactFlash={impactFlash}
+            />
+          </div>
         </div>
+
+        {game?.status === 'over' ? (
+          <div className="meteor-game-over" role="dialog" aria-modal="true" aria-labelledby="meteor-go-title">
+            <div className="meteor-game-over__card">
+              <h2 id="meteor-go-title">Well sealed</h2>
+              <p className="meteor-game-over__lead">The stack blocked the spawn — this run is over.</p>
+              <p className="meteor-game-over__scoreline">
+                Final score <strong className="mono">{game.score}</strong>
+              </p>
+              {game.score > 0 ? (
+                <p className="meteor-game-over__saved">Score saved to the hall of fame.</p>
+              ) : (
+                <p className="meteor-game-over__saved">Score was zero — nothing written to the archive.</p>
+              )}
+              <div className="meteor-game-over__mini-lb">
+                <MeteorLeaderboard top={8} title="Latest top runs" />
+              </div>
+              <div className="meteor-game-over__actions">
+                <button type="button" className="btn btn--primary" onClick={() => dispatch({ type: 'reset' })}>
+                  New storm
+                </button>
+                <button type="button" className="btn btn--ghost" onClick={exitToMain}>
+                  Main screen
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   )

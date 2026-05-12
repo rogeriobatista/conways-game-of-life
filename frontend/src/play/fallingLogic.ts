@@ -116,37 +116,35 @@ export function randomShape(): boolean[][] {
   return pick.map((row) => [...row])
 }
 
-/** Try spawn at top; nudge horizontally; reset field if impossible */
-export function spawnPiece(
+export type SpawnedPiece = { cells: boolean[][]; row: number; col: number }
+
+/**
+ * Spawns a new random piece at the top if any column fits.
+ * Returns `null` when the well is full (game over) — does not clear the board.
+ */
+export function trySpawnPiece(
   landed: boolean[][],
-  rows: number,
+  _rows: number,
   cols: number,
-): { landed: boolean[][]; piece: { cells: boolean[][]; row: number; col: number } } {
+): { landed: boolean[][]; piece: SpawnedPiece } | null {
   const cells = randomShape()
   const w = shapeWidth(cells)
+  if (w > cols) return null
+
   const center = Math.max(0, Math.floor((cols - w) / 2))
-
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const jitter = Math.floor(Math.random() * 7) - 3
+  for (let attempt = 0; attempt < 48; attempt++) {
+    const jitter = Math.floor(Math.random() * 9) - 4
     const col = Math.min(Math.max(0, cols - w), Math.max(0, center + jitter))
-    const row = 0
-    if (canPlace(landed, cells, row, col)) {
-      return { landed, piece: { cells, row, col } }
+    if (canPlace(landed, cells, 0, col)) {
+      return { landed, piece: { cells, row: 0, col } }
     }
   }
 
-  const cleared = emptyGrid(rows, cols)
-  const col0 = Math.max(0, Math.floor((cols - w) / 2))
-  if (canPlace(cleared, cells, 0, col0)) {
-    return {
-      landed: cleared,
-      piece: { cells, row: 0, col: col0 },
+  for (let col = 0; col <= cols - w; col++) {
+    if (canPlace(landed, cells, 0, col)) {
+      return { landed, piece: { cells, row: 0, col } }
     }
   }
 
-  const tiny: boolean[][] = [[true]]
-  return {
-    landed: cleared,
-    piece: { cells: tiny, row: 0, col: Math.floor(cols / 2) },
-  }
+  return null
 }

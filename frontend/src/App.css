@@ -235,7 +235,7 @@
 
 .stage__void {
   text-align: center;
-  max-width: 26rem;
+  max-width: 28rem;
   padding: 2rem 1.5rem;
 }
 
@@ -256,6 +256,14 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   justify-content: center;
+}
+
+.stage__meteor-lb {
+  margin-top: 1.75rem;
+  text-align: left;
+  width: min(100%, 24rem);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .stage__arena {
@@ -669,6 +677,143 @@
 
 .cascade .grid-shell {
   margin: 0 auto;
+}
+
+.cascade__playfield {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.meteor-game-over {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  background: rgba(2, 4, 12, 0.78);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+}
+
+.meteor-game-over__card {
+  width: min(22rem, 100%);
+  padding: 1.2rem 1.35rem;
+  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  background: rgba(10, 16, 32, 0.97);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+.meteor-game-over__card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.meteor-game-over__lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.meteor-game-over__scoreline {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.meteor-game-over__scoreline strong {
+  color: var(--ember);
+  font-size: 1.35rem;
+}
+
+.meteor-game-over__saved {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.meteor-game-over__mini-lb {
+  max-height: 9rem;
+  overflow: auto;
+  margin: 0.5rem 0 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.meteor-game-over__mini-lb .meteor-lb__title {
+  font-size: 0.68rem;
+}
+
+.meteor-game-over__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.meteor-lb {
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(6, 10, 20, 0.55);
+}
+
+.meteor-lb__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.meteor-lb__muted {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.meteor-lb__list {
+  margin: 0;
+  padding-left: 1.35rem;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.meteor-lb__list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.55rem;
+  margin-bottom: 0.4rem;
+}
+
+.meteor-lb__rank {
+  grid-row: 1 / span 2;
+  font-weight: 700;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  min-width: 1.1rem;
+}
+
+.meteor-lb__score {
+  grid-column: 2;
+  grid-row: 1;
+  font-weight: 700;
+  color: var(--ember);
+  font-size: 0.92rem;
+}
+
+.meteor-lb__meta {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 0.72rem;
+  opacity: 0.9;
 }
 
 .mono {

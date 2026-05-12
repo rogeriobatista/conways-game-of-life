@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { BoardState } from './api/types'
 import { BoardGrid } from './components/BoardGrid'
 import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
+import { MeteorLeaderboard } from './components/MeteorLeaderboard'
 import { toastConfirm } from './lib/toastConfirm'
 import { useBoardDetailQuery } from './query/useBoardDetailQuery'
 import { useBoardSummariesQuery } from './query/useBoardSummariesQuery'
@@ -362,7 +363,11 @@ export default function App() {
       <main className="stage">
         {showArcade ? (
           <div className="stage__arena">
-            <FallingBlocksPlayground busy={busy} onUploadToApi={uploadPlaygroundToApi} />
+            <FallingBlocksPlayground
+              busy={busy}
+              onUploadToApi={uploadPlaygroundToApi}
+              onExitToMain={() => setShowArcade(false)}
+            />
           </div>
         ) : createMode ? (
           <div className="stage__arena">
@@ -422,6 +427,7 @@ export default function App() {
                 Meteor shower
               </button>
             </div>
+            <MeteorLeaderboard top={12} className="stage__meteor-lb" title="Meteor hall of fame" />
           </div>
         )}
       </main>
