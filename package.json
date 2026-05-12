@@ -1,7 +1,9 @@
 {
   "name": "conways-game-of-life",
   "private": true,
-  "workspaces": ["frontend"],
+  "workspaces": [
+    "frontend"
+  ],
   "scripts": {
     "dev:backend": "dotnet run --project backend/src/ConwayGameOfLife.Api --launch-profile http",
     "dev:frontend": "npm run dev --workspace=frontend",

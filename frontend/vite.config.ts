@@ -17,6 +17,7 @@ export default defineConfig({
       'react-dom': path.resolve(monorepoRoot, 'node_modules/react-dom'),
       'react-dom/client': path.resolve(monorepoRoot, 'node_modules/react-dom/client.js'),
       sonner: path.resolve(monorepoRoot, 'node_modules/sonner'),
+      '@tanstack/react-query': path.resolve(monorepoRoot, 'node_modules/@tanstack/react-query'),
     },
   },
   server: {

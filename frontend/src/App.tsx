@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useIsMutating } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import * as gameApi from './api/gameApi'
-import type { BoardState, BoardSummary } from './api/types'
+import type { BoardState } from './api/types'
 import { BoardGrid } from './components/BoardGrid'
 import { FallingBlocksPlayground } from './components/FallingBlocksPlayground'
 import { toastConfirm } from './lib/toastConfirm'
+import { useBoardDetailQuery } from './query/useBoardDetailQuery'
+import { useBoardSummariesQuery } from './query/useBoardSummariesQuery'
+import { useGameBoardMutations } from './query/useGameBoardMutations'
 import './App.css'
 
 function emptyGrid(rows: number, cols: number): boolean[][] {
@@ -41,48 +44,53 @@ function formatWhen(iso: string): string {
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [summaries, setSummaries] = useState<BoardSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [board, setBoard] = useState<BoardState | null>(null)
   const [createMode, setCreateMode] = useState(false)
   const [draftRows, setDraftRows] = useState(12)
   const [draftCols, setDraftCols] = useState(16)
   const [draftCells, setDraftCells] = useState<boolean[][]>(() => emptyGrid(12, 16))
   const [advanceSteps, setAdvanceSteps] = useState(5)
   const [finalAttempts, setFinalAttempts] = useState(500)
-  const [busy, setBusy] = useState(false)
   const [showArcade, setShowArcade] = useState(false)
   const [lifeTicks, setLifeTicks] = useState(0)
+
+  const boardIdForQuery = !createMode ? selectedId : null
+  const boardDetailQuery = useBoardDetailQuery(boardIdForQuery)
+  const { data: summaries = [], refetch: refetchSummaries, isError: listError, error: listQueryError } =
+    useBoardSummariesQuery()
+
+  const { createBoard, replaceBoard, deleteBoard, nextGeneration, advance, finalState } = useGameBoardMutations()
+
+  const board: BoardState | null =
+    !createMode && selectedId ? (boardDetailQuery.data ?? null) : null
 
   useEffect(() => {
     setLifeTicks(0)
   }, [board?.id])
 
-  const refreshList = useCallback(async () => {
-    try {
-      setSummaries(await gameApi.listBoards())
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not reach the archives.')
-    }
-  }, [])
+  useEffect(() => {
+    if (!listError || !listQueryError) return
+    toast.error(listQueryError instanceof Error ? listQueryError.message : 'Could not reach the archives.')
+  }, [listError, listQueryError])
 
   useEffect(() => {
-    void refreshList()
-  }, [refreshList])
+    if (!boardDetailQuery.isError || !selectedId || createMode) return
+    toast.error(
+      boardDetailQuery.error instanceof Error
+        ? boardDetailQuery.error.message
+        : 'That realm could not be opened.',
+    )
+    setSelectedId(null)
+  }, [boardDetailQuery.isError, boardDetailQuery.error, selectedId, createMode])
 
-  const loadBoard = useCallback(async (id: string) => {
-    setBusy(true)
-    try {
-      const state = await gameApi.getBoard(id)
-      setBoard(state)
-      setSelectedId(id)
-      setCreateMode(false)
-      setDrawerOpen(false)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'That realm could not be opened.')
-    } finally {
-      setBusy(false)
-    }
+  const isMutating = useIsMutating() > 0
+  const isBoardInitialLoad = Boolean(selectedId) && !createMode && boardDetailQuery.isPending
+  const busy = isMutating || isBoardInitialLoad
+
+  const loadBoard = useCallback((id: string) => {
+    setSelectedId(id)
+    setCreateMode(false)
+    setDrawerOpen(false)
   }, [])
 
   const applyDraftSize = useCallback(() => {
@@ -107,7 +115,6 @@ export default function App() {
     setDraftCols(cells[0].length)
     setDraftCells(cells.map((row) => [...row]))
     setCreateMode(true)
-    setBoard(null)
     setSelectedId(null)
     setDrawerOpen(true)
   }, [])
@@ -121,65 +128,44 @@ export default function App() {
   }, [])
 
   const anchorDraft = useCallback(async () => {
-    setBusy(true)
     try {
-      const created = await gameApi.createBoard(draftCells)
-      await refreshList()
-      await loadBoard(created.id)
+      const created = await createBoard.mutateAsync(draftCells)
+      setSelectedId(created.id)
+      setCreateMode(false)
       toast.success('Realm anchored')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'The pattern refused to bind.')
-    } finally {
-      setBusy(false)
+    } catch {
+      /* toast from mutation onError */
     }
-  }, [draftCells, loadBoard, refreshList])
+  }, [createBoard, draftCells])
 
-  const handleStep = useCallback(async () => {
+  const handleStep = useCallback(() => {
     if (!board) return
-    setBusy(true)
-    try {
-      const next = await gameApi.nextGeneration(board.id)
-      setBoard(next)
-      setLifeTicks((t) => t + 1)
-      await refreshList()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Time stuttered.')
-    } finally {
-      setBusy(false)
-    }
-  }, [board, refreshList])
+    nextGeneration.mutate(board.id, {
+      onSuccess: () => setLifeTicks((t) => t + 1),
+    })
+  }, [board, nextGeneration])
 
-  const handleSprint = useCallback(async () => {
+  const handleSprint = useCallback(() => {
     if (!board) return
-    setBusy(true)
-    try {
-      const steps = Math.max(1, advanceSteps)
-      const next = await gameApi.advance(board.id, steps)
-      setBoard(next)
-      setLifeTicks((t) => t + steps)
-      await refreshList()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Time stuttered.')
-    } finally {
-      setBusy(false)
-    }
-  }, [board, advanceSteps, refreshList])
+    const steps = Math.max(1, advanceSteps)
+    advance.mutate(
+      { id: board.id, steps },
+      { onSuccess: () => setLifeTicks((t) => t + steps) },
+    )
+  }, [board, advance, advanceSteps])
 
-  const handleStillness = useCallback(async () => {
+  const handleStillness = useCallback(() => {
     if (!board) return
-    setBusy(true)
-    try {
-      const next = await gameApi.finalState(board.id, finalAttempts)
-      setBoard(next)
-      setLifeTicks((t) => t + 1)
-      await refreshList()
-      toast.success('Stillness found')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'The pattern never slept.')
-    } finally {
-      setBusy(false)
-    }
-  }, [board, finalAttempts, refreshList])
+    finalState.mutate(
+      { id: board.id, maxAttempts: finalAttempts },
+      {
+        onSuccess: () => {
+          setLifeTicks((t) => t + 1)
+          toast.success('Stillness found')
+        },
+      },
+    )
+  }, [board, finalState, finalAttempts])
 
   const clearBoard = useCallback(() => {
     if (!board) return
@@ -192,22 +178,17 @@ export default function App() {
       confirmLabel: 'Erase all',
       cancelLabel: 'Keep',
       onConfirm: async () => {
-        setBusy(true)
         try {
           const empty = Array.from({ length: rows }, () => Array<boolean>(cols).fill(false))
-          const next = await gameApi.replaceBoard(id, empty)
-          setBoard(next)
+          await replaceBoard.mutateAsync({ id, cells: empty })
           setLifeTicks(0)
-          await refreshList()
           toast.success('Canvas cleared')
-        } catch (e) {
-          toast.error(e instanceof Error ? e.message : 'The void would not clear.')
-        } finally {
-          setBusy(false)
+        } catch {
+          /* toast from mutation onError */
         }
       },
     })
-  }, [board, refreshList])
+  }, [board, replaceBoard])
 
   const deleteBoardHandler = useCallback(() => {
     if (!board) return
@@ -218,21 +199,16 @@ export default function App() {
       confirmLabel: 'Destroy',
       cancelLabel: 'Keep',
       onConfirm: async () => {
-        setBusy(true)
         try {
-          await gameApi.deleteBoard(id)
-          setBoard(null)
+          await deleteBoard.mutateAsync(id)
           setSelectedId(null)
-          await refreshList()
           toast.success('Realm destroyed')
-        } catch (e) {
-          toast.error(e instanceof Error ? e.message : 'The realm clung on.')
-        } finally {
-          setBusy(false)
+        } catch {
+          /* toast from mutation onError */
         }
       },
     })
-  }, [board, refreshList])
+  }, [board, deleteBoard])
 
   const displayCells = useMemo(() => {
     if (createMode) return draftCells
@@ -241,25 +217,20 @@ export default function App() {
 
   const uploadPlaygroundToApi = useCallback(
     async (cells: boolean[][]) => {
-      setBusy(true)
       try {
-        const created = await gameApi.createBoard(cells)
-        await refreshList()
-        await loadBoard(created.id)
+        const created = await createBoard.mutateAsync(cells)
+        setSelectedId(created.id)
         setShowArcade(false)
         toast.success('Storm saved as a realm')
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Could not anchor the storm.')
-      } finally {
-        setBusy(false)
+      } catch {
+        /* toast from mutation onError */
       }
     },
-    [loadBoard, refreshList],
+    [createBoard],
   )
 
   const openForge = () => {
     setCreateMode(true)
-    setBoard(null)
     setSelectedId(null)
     setDrawerOpen(true)
   }
@@ -321,7 +292,7 @@ export default function App() {
               </button>
             </div>
             <div className="drawer__body">
-              <button type="button" className="btn btn--ghost" style={{ width: '100%' }} onClick={() => void refreshList()} disabled={busy}>
+              <button type="button" className="btn btn--ghost" style={{ width: '100%' }} onClick={() => void refetchSummaries()} disabled={busy}>
                 Refresh archives
               </button>
 
@@ -336,7 +307,7 @@ export default function App() {
                         <button
                           type="button"
                           className={selectedId === s.id ? 'is-active' : ''}
-                          onClick={() => void loadBoard(s.id)}
+                          onClick={() => loadBoard(s.id)}
                           disabled={busy}
                         >
                           <span className="world-list__name">Realm {i + 1}</span>
@@ -460,7 +431,7 @@ export default function App() {
           {board ? (
             <>
               <div className="dock__group">
-                <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void handleStep()}>
+                <button type="button" className="btn btn--primary" disabled={busy} onClick={handleStep}>
                   Step
                 </button>
                 <div className="dock__sep" />
@@ -468,7 +439,7 @@ export default function App() {
                   Burst
                   <input type="number" min={1} max={10000} value={advanceSteps} onChange={(e) => setAdvanceSteps(Number(e.target.value))} />
                 </label>
-                <button type="button" className="btn" disabled={busy} onClick={() => void handleSprint()}>
+                <button type="button" className="btn" disabled={busy} onClick={handleSprint}>
                   Sprint
                 </button>
                 <div className="dock__sep" />
@@ -476,7 +447,7 @@ export default function App() {
                   Patience
                   <input type="number" min={1} max={100000} value={finalAttempts} onChange={(e) => setFinalAttempts(Number(e.target.value))} />
                 </label>
-                <button type="button" className="btn" disabled={busy} onClick={() => void handleStillness()}>
+                <button type="button" className="btn" disabled={busy} onClick={handleStillness}>
                   Seek stillness
                 </button>
               </div>
