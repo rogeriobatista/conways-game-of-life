@@ -3,7 +3,7 @@ using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
 using Microsoft.Extensions.Logging;
 
-namespace ConwayGameOfLife.Application;
+namespace ConwayGameOfLife.Application.Services;
 
 public sealed class MeteorScoreService(
     IMeteorScoreRepository repository,

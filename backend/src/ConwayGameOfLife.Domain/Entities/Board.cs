@@ -1,4 +1,4 @@
-namespace ConwayGameOfLife.Domain;
+namespace ConwayGameOfLife.Domain.Entities;
 
 public sealed class Board : IEquatable<Board>
 {

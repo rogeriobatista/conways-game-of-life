@@ -1,7 +1,7 @@
 using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Responses;
 
-namespace ConwayGameOfLife.Application;
+namespace ConwayGameOfLife.Application.Services;
 
 public interface IMeteorScoreService
 {

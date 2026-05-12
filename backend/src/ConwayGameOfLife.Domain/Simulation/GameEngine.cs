@@ -1,4 +1,6 @@
-namespace ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Entities;
+
+namespace ConwayGameOfLife.Domain.Simulation;
 
 public sealed class GameEngine : IGameEngine
 {

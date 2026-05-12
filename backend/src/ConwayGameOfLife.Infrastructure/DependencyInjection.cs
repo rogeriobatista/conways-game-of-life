@@ -1,5 +1,6 @@
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Infrastructure.Persistence;
+using ConwayGameOfLife.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

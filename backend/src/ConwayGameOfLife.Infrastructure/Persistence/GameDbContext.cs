@@ -1,3 +1,4 @@
+using ConwayGameOfLife.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ConwayGameOfLife.Infrastructure.Persistence;

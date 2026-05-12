@@ -27,7 +27,7 @@ On startup the API applies EF Core migrations (SQLite file is created next to th
 | Area | Purpose |
 |------|--------|
 | `ConnectionStrings:DefaultConnection` | SQLite connection string (default `Data Source=gameoflife.db`). |
-| `Game` | Limits and defaults: `MaxRows`, `MaxColumns`, `MaxAdvanceSteps`, `MaxFinalStateAttempts`, `DefaultFinalStateMaxAttempts`. |
+| `Game` | Limits and defaults: `MaxRows`, `MaxColumns`, `MaxAdvanceSteps`, `MaxFinalStateAttempts`, `DefaultFinalStateMaxAttempts`, `DefaultLeaderboardTop`. |
 | `Cors:AllowedOrigins` | Origins allowed for browser cross-origin calls (Vite dev server URLs by default). |
 
 There are no connection strings or limits hardcoded in code; they come from configuration.
@@ -56,12 +56,15 @@ JSON error bodies look like `{ "code": "...", "message": "..." }`.
 
 ## Architecture
 
-| Project | Role |
-|---------|------|
-| `ConwayGameOfLife.Domain` | `Board`, `IGameEngine`, `GameEngine` (pure rules). |
-| `ConwayGameOfLife.Application` | `IGameService`, orchestration, FluentValidation, options. |
-| `ConwayGameOfLife.Infrastructure` | EF Core SQLite, `GameBoardEntity`, migrations, `IGameBoardRepository` implementation. |
-| `ConwayGameOfLife.Api` | Controllers, Swagger, global exception handler, DI composition. |
+Projects are split by layer; **namespaces follow folders** so types are easy to locate.
+
+| Project | Role | Main folders |
+|---------|------|----------------|
+| `ConwayGameOfLife.Domain` | Pure game rules (no I/O). | `Entities/` (`Board`), `Simulation/` (`IGameEngine`, `GameEngine`). |
+| `ConwayGameOfLife.Application` | Use cases, validation, ports. | `Services/` (`IGameService`, `GameService`, meteor scores), `Commands/`, `Responses/`, `Validators/`, `Exceptions/`, `Options/`, `Persistence/` (repository contracts + `Records/`), `Composition/` (`DependencyInjection`). |
+| `ConwayGameOfLife.Infrastructure` | EF Core SQLite, migrations. | `Persistence/` (`GameDbContext`, `Entities/`, `Repositories/`), `Migrations/`. |
+| `ConwayGameOfLife.Api` | HTTP surface, Swagger, Serilog. | `Controllers/`, `ExceptionHandling/`. |
+| `ConwayGameOfLife.Tests` | xUnit tests. | `Application/`, `Domain/`, `Fixtures/` (`TestBoards`). |
 
 ## Tests
 

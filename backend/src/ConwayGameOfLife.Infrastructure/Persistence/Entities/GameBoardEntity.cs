@@ -1,4 +1,4 @@
-namespace ConwayGameOfLife.Infrastructure.Persistence;
+namespace ConwayGameOfLife.Infrastructure.Persistence.Entities;
 
 public sealed class GameBoardEntity
 {

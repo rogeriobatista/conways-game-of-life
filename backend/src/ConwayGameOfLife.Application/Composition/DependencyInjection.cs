@@ -1,6 +1,7 @@
 using ConwayGameOfLife.Application.Options;
+using ConwayGameOfLife.Application.Services;
 using ConwayGameOfLife.Application.Validators;
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Simulation;
 using FluentValidation;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

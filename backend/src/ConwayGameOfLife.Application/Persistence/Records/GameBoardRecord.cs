@@ -1,4 +1,4 @@
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Entities;
 
 namespace ConwayGameOfLife.Application.Persistence;
 

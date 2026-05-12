@@ -1,6 +1,6 @@
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Entities;
 
-namespace ConwayGameOfLife.Tests;
+namespace ConwayGameOfLife.Tests.Fixtures;
 
 /// <summary>
 /// Shared Conway board fixtures used across test classes.

@@ -1,10 +1,12 @@
-using ConwayGameOfLife.Application;
 using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Application.Services;
+using ConwayGameOfLife.Domain.Entities;
+using ConwayGameOfLife.Domain.Simulation;
+using ConwayGameOfLife.Tests.Fixtures;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

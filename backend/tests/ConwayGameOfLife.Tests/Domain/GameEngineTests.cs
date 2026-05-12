@@ -1,4 +1,6 @@
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Entities;
+using ConwayGameOfLife.Domain.Simulation;
+using ConwayGameOfLife.Tests.Fixtures;
 using FluentAssertions;
 
 namespace ConwayGameOfLife.Tests.Domain;

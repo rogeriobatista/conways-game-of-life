@@ -1,7 +1,7 @@
-using ConwayGameOfLife.Application;
 using ConwayGameOfLife.Application.Commands;
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
+using ConwayGameOfLife.Application.Services;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;

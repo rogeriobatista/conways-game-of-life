@@ -1,10 +1,11 @@
 using System.Text.Json;
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Entities;
+using ConwayGameOfLife.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace ConwayGameOfLife.Infrastructure.Persistence;
+namespace ConwayGameOfLife.Infrastructure.Persistence.Repositories;
 
 public sealed class GameBoardRepository(GameDbContext dbContext) : IGameBoardRepository
 {

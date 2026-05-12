@@ -3,11 +3,12 @@ using ConwayGameOfLife.Application.Exceptions;
 using ConwayGameOfLife.Application.Options;
 using ConwayGameOfLife.Application.Persistence;
 using ConwayGameOfLife.Application.Responses;
-using ConwayGameOfLife.Domain;
+using ConwayGameOfLife.Domain.Entities;
+using ConwayGameOfLife.Domain.Simulation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace ConwayGameOfLife.Application;
+namespace ConwayGameOfLife.Application.Services;
 
 public sealed class GameService(
     IGameBoardRepository repository,
@@ -137,17 +138,10 @@ public sealed class GameService(
         return ToResponse(record);
     }
 
-    // ── Private helpers ────────────────────────────────────────────────────────
-
-    /// <summary>Loads a board by id or throws <see cref="BoardNotFoundException"/>.</summary>
     private async Task<GameBoardRecord> RequireBoardAsync(Guid boardId, CancellationToken cancellationToken) =>
         await repository.GetByIdAsync(boardId, cancellationToken).ConfigureAwait(false)
             ?? throw new BoardNotFoundException(boardId);
 
-    /// <summary>
-    /// Validates the command, parses its cell grid into a <see cref="Board"/>,
-    /// and asserts it is within the configured dimension limits.
-    /// </summary>
     private Board ParseAndValidateBoard(CreateBoardCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
